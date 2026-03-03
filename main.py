@@ -7,17 +7,86 @@ import datetime
 import re
 import plotly.express as px
 
-st.set_page_config(page_title="がるまに♡診断モード", layout="wide")
+# --- ページ基本設定 ---
+st.set_page_config(page_title="がるまに♡Tracker Pro", layout="wide")
 
-# デザイン設定
+# --- 画像を参考にした「シンプル＆スタイリッシュ」CSS ---
 st.markdown("""
     <style>
+    /* フォント設定と背景色 */
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap');
+    html, body, [class*="css"] { font-family: 'Noto Sans JP', sans-serif; }
     .stApp { background: #fffcfd; }
-    .debug-box { background: #f0f2f6; padding: 10px; border-radius: 10px; font-family: monospace; font-size: 0.8rem; }
+    
+    /* 全体の文字色を濃いグレーに固定（見にくさを解消） */
+    h1, h2, h3, h4, h5, p, span, div, li, ul { color: #333333; }
+    
+    /* タイトルのデザイン（画像1の雰囲気を再現） */
+    .cute-title { 
+        color: #ff4d7d; 
+        font-size: 2.2rem; 
+        font-weight: 800; 
+        text-align: center; 
+        margin-bottom: 0.2rem;
+    }
+    .last-updated {
+        color: #888888;
+        text-align: center;
+        font-size: 0.8rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    /* 更新ボタン：ピンクのグラデーション、丸角（画像1を忠実に再現） */
+    div.stButton > button {
+        background: linear-gradient(90deg, #ff80a0 0%, #ff4d7d 100%);
+        color: white;
+        border: none;
+        border-radius: 50px;
+        font-weight: bold;
+        width: 100%;
+        height: 3.2rem;
+        box-shadow: 0 8px 20px rgba(255, 77, 125, 0.3);
+        transition: 0.3s;
+        font-size: 1.1rem;
+    }
+    div.stButton > button:hover { transform: translateY(-3px); box-shadow: 0 12px 25px rgba(255, 77, 125, 0.4); }
+
+    /* 作品カード：浮かび上がるような丸角（画像1のレイアウト） */
+    .work-card {
+        background: white;
+        border-radius: 20px;
+        padding: 18px;
+        margin-bottom: 15px;
+        border: 1px solid #ffeef2;
+        display: flex;
+        gap: 18px;
+        align-items: center;
+        box-shadow: 0 6px 18px rgba(255, 117, 140, 0.08);
+    }
+    /* 順位バッジ：ピンク背景、白抜き文字 */
+    .rank-badge {
+        background: #ff4d7d;
+        color: white;
+        min-width: 35px;
+        height: 35px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+    /* DL数：太字、ピンク */
+    .dl-count {
+        color: #ff4d7d;
+        font-weight: bold;
+        font-size: 1.2rem;
+        margin-top: 5px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-DB_NAME = "garumani_debug.db"
+DB_NAME = "garumani_final_styling.db"
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
@@ -28,45 +97,32 @@ def init_db():
 
 def fetch_data():
     url = "https://www.dlsite.com/girls/ranking/day"
-    # iPhoneからのアクセスをより忠実に再現
+    # 前回の診断で成功したheadersを使用
     headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "ja-jp",
-        "Referer": "https://www.dlsite.com/"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "ja,en-US;q=0.9,en;q=0.8"
     }
-    
     try:
         res = requests.get(url, headers=headers, cookies={"adultchecked": "1"}, timeout=15)
-        
-        # 診断情報の表示
-        st.info(f"診断情報: ステータスコード {res.status_code}")
-        
-        if res.status_code != 200:
-            st.error(f"DLsiteから拒否されました (Error {res.status_code})。サーバーがブロックされている可能性があります。")
-            return False
-
         soup = BeautifulSoup(res.content, "html.parser")
-        items = soup.select(".n_worklist_item")
+        items = soup.select(".n_worklist_item") or soup.select(".work_1column")
         
-        if not items:
-            st.warning("サイトは見えましたが、作品リストが見つかりません。サイトの構造が変わった可能性があります。")
-            # 念のため中身を少し表示
-            with st.expander("取得したページの内容を確認"):
-                st.code(soup.prettify()[:1000])
-            return False
-            
         results = []
-        now = datetime.datetime.now().strftime('%m/%d %H:%M')
-        for i, item in enumerate(items[:30], 1):
+        now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+        
+        for i, item in enumerate(items[:30], 1): # 上位30件
             try:
-                title = item.select_one(".work_name").text.strip()
-                circle = item.select_one(".maker_name").text.strip()
-                dl_text = item.select_one(".work_dl").text.replace(',', '')
-                dl_count = int(re.search(r'\d+', dl_text).group()) if re.search(r'\d+', dl_text) else 0
-                img = item.select_one(".work_thumb img")
-                img_url = "https:" + (img.get('data-src') or img.get('src'))
-                genres = ", ".join([a.text for a in item.select(".work_category a")])
+                title_tag = item.select_one(".work_name a") or item.select_one("dt a")
+                title = title_tag.text.strip()
+                circle = (item.select_one(".maker_name") or item.select_one(".circle_name")).text.strip()
+                dl_text = item.text.replace(',', '')
+                dl_match = re.search(r'(\d+)DL', dl_text)
+                dl_count = int(dl_match.group(1)) if dl_match else 0
+                img = item.select_one("img")
+                img_url = img.get('data-src') or img.get('src') or ""
+                if img_url.startswith("//"): img_url = "https:" + img_url
+                genre_tags = item.select(".work_category a") or item.select(".tag a")
+                genres = ", ".join([g.text.strip() for g in genre_tags])
                 results.append((i, title, circle, dl_count, genres, img_url, now))
             except: continue
         
@@ -78,24 +134,57 @@ def fetch_data():
             conn.commit()
             conn.close()
             return True
-    except Exception as e:
-        st.error(f"通信エラーが発生しました: {e}")
+    except: return False
     return False
 
-# --- メイン画面 ---
-st.title("🎀 がるまに♡診断中")
-
-if st.button("🔍 データを仕入れてみる"):
-    if fetch_data():
-        st.success("成功しました！")
-        st.rerun()
-
+# --- メインロジック ---
 init_db()
 conn = sqlite3.connect(DB_NAME)
 df = pd.read_sql("SELECT * FROM rankings ORDER BY rank ASC", conn)
 conn.close()
 
+# アプリヘッダー（画像にある最終更新日時を追加）
+st.markdown('<div class="cute-title">🎀 がるまに♡Tracker Pro</div>', unsafe_allow_html=True)
 if not df.empty:
-    st.write(df)
+    st.markdown(f'<div class="last-updated">最終更新: {df["updated_at"].iloc[0]}</div>', unsafe_allow_html=True)
 else:
-    st.write("現在、データは空っぽです。上のボタンを押して診断を開始してください。")
+    st.markdown(f'<div class="last-updated">まだデータがありません。下のボタンを押して仕入れよう！</div>', unsafe_allow_html=True)
+
+# アクション：ピンクのグラデーションボタン
+if st.button("✨ 最新ランキングにアップデート"):
+    with st.spinner("DLsiteから魔法をかけています..."):
+        if fetch_data():
+            st.toast("仕入れ完了！最新の状態だよ♡")
+            st.rerun()
+
+st.divider()
+
+if not df.empty:
+    # 📊 ジャンル推移・分析グラフ（スタイリッシュで情報量が多いので維持）
+    st.markdown("### 📊 人気ジャンルトレンド (Top 30)")
+    all_genres = []
+    for g_str in df['genres'].dropna().str.split(', '):
+        all_genres.extend(g_str)
+    
+    if all_genres:
+        genre_counts = pd.Series(all_genres).value_counts().head(8).reset_index()
+        genre_counts.columns = ['ジャンル', '作品数']
+        fig = px.bar(genre_counts, x='作品数', y='ジャンル', orientation='h', 
+                     color='作品数', color_continuous_scale='RdPu', text='作品数')
+        fig.update_layout(height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0,r=0,t=0,b=0))
+        st.plotly_chart(fig, use_container_width=True)
+
+    # 🏆 ランキング（画像にあるカード型レイアウトを忠実に再現）
+    st.markdown("### 🏆 今日のデイリーランキング")
+    for _, row in df.iterrows():
+        st.markdown(f"""
+            <div class="work-card">
+                <div class="rank-badge">{row['rank']}</div>
+                <img src="{row['thumbnail_url']}" style="width:100px; height:100px; object-fit:cover; border-radius:15px; border:1px solid #ffccd9;">
+                <div style="flex:1;">
+                    <div style="font-weight:bold; font-size:1.05rem; line-height:1.4;">{row['title']}</div>
+                    <div style="color:#666666; font-size:0.85rem; margin-top:3px;">サークル: {row['circle_name']}</div>
+                    <div class="dl-count">📥 {row['dl_count']:,} DL</div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
