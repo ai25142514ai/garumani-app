@@ -2,15 +2,13 @@ import requests
 import csv
 import datetime
 import re
+from bs4 import BeautifulSoup
 
 url = "https://www.dlsite.com/girls/ranking/day"
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept-Language": "ja,ja-JP;q=0.9",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }
 cookies = {
     "adultchecked": "1",
@@ -22,25 +20,32 @@ try:
     session.get("https://www.dlsite.com/girls/", headers=headers, cookies=cookies, timeout=15)
     res = session.get(url, headers=headers, cookies=cookies, timeout=20)
     print(f"ステータス: {res.status_code}")
-    print(f"サイズ: {len(res.content)} bytes")
 
-    from bs4 import BeautifulSoup
-    soup = BeautifulSoup(res.content, "lxml")
+    # テキストとして正しく読み込む
+    res.encoding = res.apparent_encoding
+    html = res.text
+    print(f"HTMLサイズ: {len(html)}")
+    print(f"先頭200文字: {html[:200]}")
 
-    # 複数のセレクタを試す
+    soup = BeautifulSoup(html, "lxml")
+
     items = (
         soup.select("li.search_result_img_box_inner") or
         soup.select(".n_worklist_item") or
         soup.select(".work_1column") or
         soup.select("ul.work_1column_list > li") or
-        soup.select(".ranking_list li")
+        soup.select(".ranking_list li") or
+        soup.select("li[id^='work_']")
     )
     print(f"取得件数: {len(items)}")
 
     if not items:
-        # HTMLの構造確認用
-        print("HTMLサンプル:")
-        print(soup.prettify()[:2000])
+        print("セレクタ一覧テスト:")
+        for tag in ["li", "article", "div.work", ".work_name"]:
+            found = soup.select(tag)
+            print(f"  {tag}: {len(found)}件")
+        print("HTML先頭3000文字:")
+        print(html[:3000])
 
     now = datetime.datetime.now().strftime("%Y.%m.%d %H:%M")
     rows = []
@@ -50,8 +55,8 @@ try:
             title_el = (
                 item.select_one(".work_name a") or
                 item.select_one("dt a") or
-                item.select_one("a.work_name") or
-                item.select_one("h2 a")
+                item.select_one("h2 a") or
+                item.select_one("a")
             )
             title = title_el.get_text(strip=True) if title_el else "不明"
 
@@ -86,7 +91,7 @@ try:
             genres = "|".join([g.get_text(strip=True) for g in genres_els])
 
             rows.append([i, title, circle, dl, price, genres, img, now])
-            print(f"  {i}. {title[:20]}")
+            print(f"  {i}. {title[:30]}")
         except Exception as e:
             print(f"行{i}エラー: {e}")
             continue
