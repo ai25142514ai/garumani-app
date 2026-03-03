@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import requests
-from bs4 import BeautifulSoup
 import datetime
 import re
 
@@ -18,11 +17,11 @@ st.markdown("""
     .main-title { font-family: 'Playfair Display', serif; font-size: 3.2rem; color: #1a1a1a !important; margin: 0; }
     div.stButton > button { background: #1a1a1a; color: white !important; border: none; border-radius: 0; padding: 15px; font-weight: 700; width: 100%; transition: 0.3s; }
     div.stButton > button:hover { background: #ff4d7d; }
-    .work-card { background: white; padding: 25px; margin-bottom: 20px; display: flex; gap: 20px; align-items: center; border: 1px solid #eee; position: relative; }
-    .neon-hit { border: 2px solid #ff4d7d !important; box-shadow: 0 0 15px rgba(255, 77, 125, 0.4); background: linear-gradient(90deg, #fff 0%, #fff9fa 100%); }
+    .work-card { background: white; padding: 25px; margin-bottom: 20px; display: flex; gap: 20px; align-items: flex-start; border: 1px solid #eee; position: relative; }
+    .neon-hit { border: 2px solid #ff4d7d !important; box-shadow: 0 0 15px rgba(255, 77, 125, 0.4); }
     .neon-label { position: absolute; top: -12px; right: 20px; background: #ff4d7d; color: white; padding: 2px 10px; font-size: 0.7rem; font-weight: 700; }
     .rank-text { font-family: 'Playfair Display', serif; font-size: 2.8rem; font-style: italic; color: #d0d0d0; min-width: 60px; }
-    .work-image { width: 110px; height: 110px; object-fit: cover; border: 1px solid #f0f0f0; }
+    .work-image { width: 110px; height: 110px; object-fit: cover; border: 1px solid #f0f0f0; flex-shrink: 0; }
     .work-title { font-family: 'Playfair Display', serif; font-size: 1.25rem; font-weight: 700; color: #1a1a1a !important; margin-bottom: 5px; }
     .tag-container { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0; }
     .tag-item { background: #f4f4f4; color: #666; padding: 2px 8px; font-size: 0.65rem; font-weight: 700; }
@@ -41,60 +40,50 @@ def init_db():
     conn.close()
 
 def fetch_data():
-    url = "https://www.dlsite.com/girls/ranking/day"
+    # DLsite 公式API（ブロックされない）
+    url = "https://www.dlsite.com/girls/api/search/ajax"
+    params = {
+        "work_type_category": "audio",
+        "order": "dl_d",
+        "per_page": 30,
+        "page": 1,
+        "is_lifetime_access": 0,
+    }
     headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1"
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://www.dlsite.com/girls/",
     }
     try:
-        res = requests.get(url, headers=headers, cookies={"adultchecked": "1"}, timeout=15)
+        res = requests.get(url, params=params, headers=headers, timeout=15)
         st.write(f"HTTPステータス: {res.status_code}")
 
-        soup = BeautifulSoup(res.content, "html.parser")
+        data = res.json()
+        works = data.get("works", [])
+        st.write(f"取得件数: {len(works)}件")
 
-        items_a = soup.select(".n_worklist_item")
-        items_b = soup.select(".work_1column")
-        st.write(f"セレクタA: {len(items_a)}件 / セレクタB: {len(items_b)}件")
-
-        items = items_a or items_b
-
-        if not items:
-            st.warning("アイテムが見つかりませんでした。HTMLを確認します。")
-            st.code(soup.prettify()[:3000], language="html")
+        if not works:
+            st.warning("作品データが空でした。APIレスポンスを確認します。")
+            st.json(data)
             return False
 
         results = []
         now = datetime.datetime.now().strftime("%Y.%m.%d %H:%M")
 
-        for i, item in enumerate(items[:30], 1):
+        for i, w in enumerate(works, 1):
             try:
-                title_el = item.select_one(".work_name") or item.select_one("dt a")
-                title = title_el.get_text(strip=True) if title_el else "不明"
-
-                circle_el = item.select_one(".maker_name") or item.select_one(".circle_name")
-                circle = circle_el.get_text(strip=True) if circle_el else "不明"
-
-                raw_text = item.get_text().replace(",", "")
-                dl_match = re.search(r"(\d+)DL", raw_text)
-                dl = int(dl_match.group(1)) if dl_match else 0
-
-                price_tag = item.select_one(".work_price") or item.select_one(".price")
-                price = int(re.sub(r"\D", "", price_tag.get_text())) if price_tag else 0
-
-                img_tag = item.select_one("img")
-                img = ""
-                if img_tag:
-                    img = img_tag.get("data-src") or img_tag.get("src") or ""
-                    if img.startswith("//"):
-                        img = "https:" + img
-
-                genres = "|".join([g.get_text(strip=True) for g in (item.select(".work_category a") or item.select(".tag a"))])
+                title = w.get("work_name", "不明")
+                circle = w.get("maker_name", "不明")
+                dl = int(w.get("dl_count", 0) or 0)
+                price = int(w.get("price", 0) or 0)
+                img = w.get("image_main", {}).get("url", "")
+                if img and not img.startswith("http"):
+                    img = "https:" + img
+                genres_list = w.get("genres", []) or []
+                genres = "|".join([g.get("name", "") for g in genres_list])
                 results.append((i, title, circle, dl, price, genres, img, now))
-
             except Exception as e:
                 st.warning(f"行{i} スキップ: {e}")
                 continue
-
-        st.write(f"取得成功件数: {len(results)}件")
 
         if results:
             conn = sqlite3.connect(DB_NAME)
@@ -111,6 +100,7 @@ def fetch_data():
 
     return False
 
+# ヘッダー
 st.markdown('<div class="header-box"><h1 class="main-title">Garumani Analytics</h1><div style="color:#ff4d7d;font-weight:bold;letter-spacing:2px;font-size:0.7rem;">MARKET DATA AGGREGATOR</div></div>', unsafe_allow_html=True)
 
 if st.button("RUN DATA AGGREGATOR"):
@@ -119,7 +109,7 @@ if st.button("RUN DATA AGGREGATOR"):
             st.success("集計完了！")
             st.rerun()
         else:
-            st.error("集計に失敗しました。上のデバッグ情報を確認してください。")
+            st.error("集計に失敗しました。上の情報を確認してください。")
 
 init_db()
 conn = sqlite3.connect(DB_NAME)
@@ -131,24 +121,27 @@ if not df.empty:
         import plotly.express as px
         all_genres = []
         for gs in df["genres"].dropna().str.split("|"):
-            all_genres.extend(gs)
-        g_df = pd.Series(all_genres).value_counts().head(10).reset_index()
-        g_df.columns = ["Genre", "Count"]
-        fig = px.pie(g_df, values="Count", names="Genre", hole=0.6, color_discrete_sequence=px.colors.sequential.RdPu_r)
-        fig.update_layout(height=350, margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig, width="stretch")
+            all_genres.extend([g for g in gs if g])
+        if all_genres:
+            g_df = pd.Series(all_genres).value_counts().head(10).reset_index()
+            g_df.columns = ["Genre", "Count"]
+            fig = px.pie(g_df, values="Count", names="Genre", hole=0.6,
+                         color_discrete_sequence=px.colors.sequential.RdPu_r)
+            fig.update_layout(height=350, margin=dict(l=20, r=20, t=20, b=20),
+                              paper_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fig, width="stretch")
     except Exception as e:
         st.warning(f"グラフ表示エラー: {e}")
 
     for _, row in df.iterrows():
         hit = "neon-hit" if row["dl"] >= 10000 else ""
         badge = '<div class="neon-label">10K+ TRENDING</div>' if row["dl"] >= 10000 else ""
-        tags = "".join([f'<span class="tag-item">{t}</span>' for t in str(row["genres"]).split("|")])
+        tags = "".join([f'<span class="tag-item">{t}</span>' for t in str(row["genres"]).split("|") if t])
         st.markdown(
             f'<div class="work-card {hit}">{badge}'
             f'<div class="rank-text">{row["rank"]:02d}</div>'
             f'<img src="{row["img"]}" class="work-image">'
-            f'<div class="work-content">'
+            f'<div style="flex:1;">'
             f'<div class="work-title">{row["title"]}</div>'
             f'<div style="color:#888;font-size:0.8rem;">{row["circle"]}</div>'
             f'<div class="tag-container">{tags}</div>'
