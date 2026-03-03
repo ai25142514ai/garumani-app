@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>がるまにランキング</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Kaisei+Decol:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --pink: #ff4da6;
+    --pink-light: #ff80c8;
+    --purple: #b44dff;
+    --bg: #0d0010;
+    --bg2: #130018;
+    --card-bg: #1a0025;
+    --card-border: #3a1050;
+    --text: #f0e0ff;
+    --text-muted: #a080b0;
+    --neon-pink: 0 0 8px #ff4da6, 0 0 20px #ff4da688;
+    --neon-purple: 0 0 8px #b44dff, 0 0 20px #b44dff88;
+    --neon-gold: 0 0 8px #ffd700, 0 0 20px #ffd70088, 0 0 50px #ffd70066;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Noto Sans JP',sans-serif; min-height:100vh; overflow-x:hidden; }
+  body::before { content:''; position:fixed; inset:0; background: linear-gradient(rgba(180,77,255,0.04) 1px,transparent 1px), linear-gradient(90deg,rgba(180,77,255,0.04) 1px,transparent 1px); background-size:40px 40px; pointer-events:none; z-index:0; }
+  header { position:sticky; top:0; z-index:100; background:rgba(13,0,16,0.92); backdrop-filter:blur(12px); border-bottom:1px solid rgba(180,77,255,0.3); padding:12px 16px; }
+  .header-inner { display:flex; align-items:center; justify-content:space-between; max-width:600px; margin:0 auto; }
+  .logo { font-family:'Kaisei Decol',serif; font-size:20px; background:linear-gradient(135deg,var(--pink),var(--purple)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; filter:drop-shadow(0 0 8px rgba(255,77,166,0.5)); }
+  .last-updated { font-size:10px; color:var(--text-muted); }
+  .tabs { display:flex; gap:8px; padding:14px 16px 0; max-width:600px; margin:0 auto; overflow-x:auto; scrollbar-width:none; }
+  .tabs::-webkit-scrollbar { display:none; }
+  .tab { flex-shrink:0; padding:7px 16px; border-radius:20px; font-size:13px; font-weight:700; cursor:pointer; border:1px solid var(--card-border); background:var(--card-bg); color:var(--text-muted); transition:all 0.2s; }
+  .tab.active { background:linear-gradient(135deg,var(--pink),var(--purple)); border-color:transparent; color:white; box-shadow:var(--neon-pink); }
+  main { max-width:600px; margin:0 auto; padding:14px 12px 80px; position:relative; z-index:1; }
+  #loading { text-align:center; padding:60px 20px; }
+  .spinner { width:40px; height:40px; border:3px solid rgba(180,77,255,0.2); border-top-color:var(--purple); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 16px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes neonPulse { 0%,100% { box-shadow:0 0 8px rgba(255,215,0,0.3),inset 0 0 20px rgba(255,215,0,0.04); } 50% { box-shadow:0 0 20px rgba(255,215,0,0.5),0 0 40px rgba(255,215,0,0.2),inset 0 0 20px rgba(255,215,0,0.06); } }
+  .rank-card { background:var(--card-bg); border:1px solid var(--card-border); border-radius:14px; margin-bottom:10px; overflow:hidden; display:flex; transition:transform 0.15s; animation:fadeUp 0.3s ease both; cursor:pointer; text-decoration:none; color:inherit; }
+  .rank-card:active { transform:scale(0.98); }
+  .rank-card.mega-hit { border-color:rgba(255,215,0,0.6); animation:fadeUp 0.3s ease both,neonPulse 2.5s ease-in-out infinite; }
+  .thumb-wrap { width:90px; min-width:90px; height:120px; overflow:hidden; position:relative; background:var(--bg2); }
+  .thumb-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
+  .thumb-placeholder { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#1a0025,#2a0040); font-size:28px; }
+  .rank-badge { position:absolute; top:6px; left:6px; width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:900; z-index:2; }
+  .rank-badge.r1 { background:linear-gradient(135deg,#ffd700,#ffaa00); color:#000; box-shadow:var(--neon-gold); }
+  .rank-badge.r2 { background:linear-gradient(135deg,#c0c0c0,#888); color:#000; }
+  .rank-badge.r3 { background:linear-gradient(135deg,#cd7f32,#8b4513); color:#fff; }
+  .rank-badge.other { background:rgba(0,0,0,0.7); color:var(--text-muted); border:1px solid var(--card-border); }
+  .card-info { flex:1; padding:10px 12px; display:flex; flex-direction:column; gap:5px; min-width:0; }
+  .card-title { font-size:13px; font-weight:700; line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .card-circle { font-size:11px; color:var(--pink-light); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card-meta { display:flex; gap:10px; flex-wrap:wrap; }
+  .meta-item { font-size:11px; color:var(--text-muted); display:flex; align-items:center; gap:3px; }
+  .meta-item.dl { color:var(--pink-light); font-weight:700; }
+  .meta-item.price { color:#aaffcc; }
+  .mega-badge { font-size:9px; background:linear-gradient(135deg,#ffd700,#ffaa00); color:#000; padding:1px 5px; border-radius:4px; font-weight:900; margin-left:4px; }
+  .card-tags { display:flex; gap:4px; flex-wrap:wrap; margin-top:2px; }
+  .tag { font-size:10px; padding:2px 7px; border-radius:10px; background:rgba(180,77,255,0.15); border:1px solid rgba(180,77,255,0.25); color:#d0a0ff; white-space:nowrap; }
+  .section-title { font-family:'Kaisei Decol',serif; font-size:16px; color:var(--pink); text-shadow:var(--neon-pink); margin:16px 0 10px; display:flex; align-items:center; gap:8px; }
+  .section-title::after { content:''; flex:1; height:1px; background:linear-gradient(90deg,rgba(255,77,166,0.4),transparent); }
+  .tag-rank-list { display:flex; flex-direction:column; gap:8px; }
+  .tag-rank-item { display:flex; align-items:center; gap:10px; background:var(--card-bg); border:1px solid var(--card-border); border-radius:10px; padding:10px 14px; animation:fadeUp 0.3s ease both; }
+  .tag-rank-num { font-size:18px; font-weight:900; min-width:28px; color:var(--purple); text-shadow:var(--neon-purple); }
+  .tag-rank-num.t1 { color:#ffd700; text-shadow:var(--neon-gold); }
+  .tag-rank-num.t2 { color:#c0c0c0; }
+  .tag-rank-num.t3 { color:#cd7f32; }
+  .tag-rank-name { flex:1; font-size:14px; font-weight:700; }
+  .tag-rank-bar-wrap { width:80px; }
+  .tag-rank-bar { height:6px; border-radius:3px; background:linear-gradient(90deg,var(--pink),var(--purple)); box-shadow:var(--neon-pink); }
+  .tag-rank-count { font-size:11px; color:var(--text-muted); margin-top:3px; text-align:right; }
+  .error-msg { text-align:center; padding:40px 20px; color:var(--text-muted); }
+  footer { position:fixed; bottom:0; left:0; right:0; background:rgba(13,0,16,0.95); border-top:1px solid rgba(180,77,255,0.2); padding:8px 16px; text-align:center; font-size:10px; color:var(--text-muted); z-index:100; }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div class="logo">💜 がるまにランキング</div>
+    <div class="last-updated" id="lastUpdated">読み込み中...</div>
+  </div>
+</header>
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('ranking')">🏆 ランキング</div>
+  <div class="tab" onclick="switchTab('tags')">🏷️ タグ人気</div>
+</div>
+<main>
+  <div id="loading"><div class="spinner"></div><div style="color:var(--text-muted);font-size:13px;">データを読み込み中...</div></div>
+  <div id="rankingSection" style="display:none"></div>
+  <div id="tagsSection" style="display:none"></div>
+</main>
+<footer>データは毎日午前10時頃に更新されます</footer>
+<script>
+const BASE='https://raw.githubusercontent.com/ai25142514ai/garumani-app/main/';
+async function fetchJSON(f){const r=await fetch(BASE+f+'?t='+Date.now());if(!r.ok)throw new Error('err');return r.json();}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',(i===0&&tab==='ranking')||(i===1&&tab==='tags')));
+  document.getElementById('rankingSection').style.display=tab==='ranking'?'block':'none';
+  document.getElementById('tagsSection').style.display=tab==='tags'?'block':'none';
+}
+function renderRanking(data){
+  document.getElementById('lastUpdated').textContent=data.date?data.date+' 更新':'';
+  const items=data.items||[];
+  document.getElementById('rankingSection').innerHTML=items.map((item,idx)=>{
+    const isMega=(item.dl_count||0)>=10000;
+    const tags=(item.tags||[]).slice(0,4);
+    const dlStr=item.dl_count?item.dl_count.toLocaleString()+'DL':'';
+    const priceStr=item.price?item.price.toLocaleString()+'円':'';
+    const circle=item.circle||item.author||'';
+    const badge=item.rank<=3?'r'+item.rank:'other';
+    return `<a class="rank-card${isMega?' mega-hit':''}" href="${item.url||'#'}" target="_blank" rel="noopener" style="animation-delay:${idx*0.04}s">
+      <div class="thumb-wrap">
+        ${item.img?`<img src="${esc(item.img)}" alt="" loading="lazy" onerror="this.parentNode.innerHTML='<div class=thumb-placeholder>📖</div>'">`:'<div class="thumb-placeholder">📖</div>'}
+        <div class="rank-badge ${badge}">${item.rank}</div>
+      </div>
+      <div class="card-info">
+        <div class="card-title">${esc(item.title)}</div>
+        ${circle?`<div class="card-circle">🎨 ${esc(circle)}</div>`:''}
+        <div class="card-meta">
+          ${dlStr?`<span class="meta-item dl">⬇ ${esc(dlStr)}${isMega?'<span class="mega-badge">1万超え</span>':''}</span>`:''}
+          ${priceStr?`<span class="meta-item price">💴 ${esc(priceStr)}</span>`:''}
+          ${item.release_date?`<span class="meta-item">📅 ${esc(item.release_date)}</span>`:''}
+        </div>
+        ${tags.length?`<div class="card-tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>`:''}
+      </div>
+    </a>`;
+  }).join('');
+}
+function renderTags(data){
+  const tags=data.tags||[];
+  const max=tags[0]?.count||1;
+  document.getElementById('tagsSection').innerHTML=`
+    <div class="section-title">🏷️ 今日の人気タグ</div>
+    <div class="tag-rank-list">
+      ${tags.map((t,i)=>`<div class="tag-rank-item" style="animation-delay:${i*0.05}s">
+        <div class="tag-rank-num ${i<3?'t'+(i+1):''}">${i+1}</div>
+        <div class="tag-rank-name">${esc(t.tag)}</div>
+        <div class="tag-rank-bar-wrap">
+          <div class="tag-rank-bar" style="width:${Math.round(t.count/max*100)}%"></div>
+          <div class="tag-rank-count">${t.count}作品</div>
+        </div>
+      </div>`).join('')}
+    </div>`;
+}
+async function init(){
+  try{
+    const [ranking,tags]=await Promise.all([fetchJSON('ranking_data.json'),fetchJSON('tag_ranking.json')]);
+    document.getElementById('loading').style.display='none';
+    renderRanking(ranking);
+    renderTags(tags);
+    switchTab('ranking');
+    document.getElementById('rankingSection').style.display='block';
+  }catch(e){
+    document.getElementById('loading').innerHTML=`<div class="error-msg"><div style="font-size:40px;margin-bottom:12px">😢</div><div>データの読み込みに失敗しました</div><div style="font-size:11px;margin-top:8px">しばらくしてから再度お試しください</div></div>`;
+  }
+}
+init();
+</script>
+</body>
+</html>
