@@ -3,6 +3,7 @@ import pandas as pd
 import sqlite3
 import requests
 import datetime
+import xml.etree.ElementTree as ET
 import re
 
 st.set_page_config(page_title="Garumani Analytics Pro", layout="wide")
@@ -40,50 +41,69 @@ def init_db():
     conn.close()
 
 def fetch_data():
-    # DLsite 公式API（ブロックされない）
-    url = "https://www.dlsite.com/girls/api/search/ajax"
-    params = {
-        "work_type_category": "audio",
-        "order": "dl_d",
-        "per_page": 30,
-        "page": 1,
-        "is_lifetime_access": 0,
-    }
+    # DLsite がるまに RSS（ランキング上位作品）
+    url = "https://www.dlsite.com/girls/ranking/day/type/SOU/lang/jp.xml"
     headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Referer": "https://www.dlsite.com/girls/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
     try:
-        res = requests.get(url, params=params, headers=headers, timeout=15)
+        res = requests.get(url, headers=headers, timeout=15)
         st.write(f"HTTPステータス: {res.status_code}")
+        st.write(f"レスポンスサイズ: {len(res.content)} bytes")
 
-        data = res.json()
-        works = data.get("works", [])
-        st.write(f"取得件数: {len(works)}件")
+        if res.status_code != 200 or len(res.content) < 100:
+            st.error("データ取得に失敗しました。レスポンス内容を確認します。")
+            st.code(res.text[:2000])
+            return False
 
-        if not works:
-            st.warning("作品データが空でした。APIレスポンスを確認します。")
-            st.json(data)
+        root = ET.fromstring(res.content)
+        ns = {"content": "http://purl.org/rss/1.0/modules/content/"}
+
+        items = root.findall(".//item")
+        st.write(f"RSS アイテム数: {len(items)}件")
+
+        if not items:
+            st.warning("アイテムが見つかりませんでした。")
+            st.code(res.text[:3000])
             return False
 
         results = []
         now = datetime.datetime.now().strftime("%Y.%m.%d %H:%M")
 
-        for i, w in enumerate(works, 1):
+        for i, item in enumerate(items[:30], 1):
             try:
-                title = w.get("work_name", "不明")
-                circle = w.get("maker_name", "不明")
-                dl = int(w.get("dl_count", 0) or 0)
-                price = int(w.get("price", 0) or 0)
-                img = w.get("image_main", {}).get("url", "")
-                if img and not img.startswith("http"):
-                    img = "https:" + img
-                genres_list = w.get("genres", []) or []
-                genres = "|".join([g.get("name", "") for g in genres_list])
+                title = item.findtext("title") or "不明"
+                link = item.findtext("link") or ""
+
+                # 説明文からサークル名・価格・DL数を抽出
+                desc = item.findtext("description") or ""
+
+                # 画像URL取得
+                img = ""
+                enclosure = item.find("enclosure")
+                if enclosure is not None:
+                    img = enclosure.get("url", "")
+
+                # 説明からテキスト抽出
+                clean_desc = re.sub(r"<[^>]+>", "", desc)
+
+                circle_match = re.search(r"サークル名[：:]\s*(.+?)[\n\r]", clean_desc)
+                circle = circle_match.group(1).strip() if circle_match else "不明"
+
+                price_match = re.search(r"(\d[\d,]+)円", clean_desc)
+                price = int(price_match.group(1).replace(",", "")) if price_match else 0
+
+                dl_match = re.search(r"([\d,]+)\s*DL", clean_desc)
+                dl = int(dl_match.group(1).replace(",", "")) if dl_match else 0
+
+                genres = ""
                 results.append((i, title, circle, dl, price, genres, img, now))
+
             except Exception as e:
                 st.warning(f"行{i} スキップ: {e}")
                 continue
+
+        st.write(f"処理完了: {len(results)}件")
 
         if results:
             conn = sqlite3.connect(DB_NAME)
