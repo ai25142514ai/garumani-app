@@ -6,10 +6,8 @@ from bs4 import BeautifulSoup
 import datetime
 import re
 
-# 1. ページ基本設定
 st.set_page_config(page_title="Garumani Analytics Pro", layout="wide")
 
-# 2. デザイン (CSS)
 st.markdown("""
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Playfair+Display:ital,wght@1,700" rel="stylesheet">
 <style>
@@ -49,21 +47,18 @@ def fetch_data():
     }
     try:
         res = requests.get(url, headers=headers, cookies={"adultchecked": "1"}, timeout=15)
-
-        # ★デバッグ: ステータスコード表示
         st.write(f"HTTPステータス: {res.status_code}")
 
-        soup = BeautifulSoup(res.content, "lxml")  # ← lxml に変更
+        soup = BeautifulSoup(res.content, "html.parser")
 
-        # ★デバッグ: セレクタ確認
         items_a = soup.select(".n_worklist_item")
         items_b = soup.select(".work_1column")
-        st.write(f"セレクタA (.n_worklist_item): {len(items_a)}件 / セレクタB (.work_1column): {len(items_b)}件")
+        st.write(f"セレクタA: {len(items_a)}件 / セレクタB: {len(items_b)}件")
 
         items = items_a or items_b
 
         if not items:
-            st.warning("アイテムが見つかりませんでした。HTMLの先頭3000文字を確認します。")
+            st.warning("アイテムが見つかりませんでした。HTMLを確認します。")
             st.code(soup.prettify()[:3000], language="html")
             return False
 
@@ -116,7 +111,6 @@ def fetch_data():
 
     return False
 
-# 3. メイン表示
 st.markdown('<div class="header-box"><h1 class="main-title">Garumani Analytics</h1><div style="color:#ff4d7d;font-weight:bold;letter-spacing:2px;font-size:0.7rem;">MARKET DATA AGGREGATOR</div></div>', unsafe_allow_html=True)
 
 if st.button("RUN DATA AGGREGATOR"):
@@ -142,7 +136,7 @@ if not df.empty:
         g_df.columns = ["Genre", "Count"]
         fig = px.pie(g_df, values="Count", names="Genre", hole=0.6, color_discrete_sequence=px.colors.sequential.RdPu_r)
         fig.update_layout(height=350, margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     except Exception as e:
         st.warning(f"グラフ表示エラー: {e}")
 
