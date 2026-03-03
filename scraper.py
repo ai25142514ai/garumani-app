@@ -19,79 +19,62 @@ try:
     session = requests.Session()
     session.get("https://www.dlsite.com/girls/", headers=headers, cookies=cookies, timeout=15)
     res = session.get(url, headers=headers, cookies=cookies, timeout=20)
-    print(f"ステータス: {res.status_code}")
-
-    # テキストとして正しく読み込む
     res.encoding = res.apparent_encoding
     html = res.text
-    print(f"HTMLサイズ: {len(html)}")
-    print(f"先頭200文字: {html[:200]}")
 
     soup = BeautifulSoup(html, "lxml")
 
-    items = (
-        soup.select("li.search_result_img_box_inner") or
-        soup.select(".n_worklist_item") or
-        soup.select(".work_1column") or
-        soup.select("ul.work_1column_list > li") or
-        soup.select(".ranking_list li") or
-        soup.select("li[id^='work_']")
-    )
-    print(f"取得件数: {len(items)}")
-
-    if not items:
-        print("セレクタ一覧テスト:")
-        for tag in ["li", "article", "div.work", ".work_name"]:
-            found = soup.select(tag)
-            print(f"  {tag}: {len(found)}件")
-        print("HTML先頭3000文字:")
-        print(html[:3000])
+    # .work_nameが30件あることがわかったので、その親要素を使う
+    work_names = soup.select(".work_name")
+    print(f".work_name件数: {len(work_names)}")
 
     now = datetime.datetime.now().strftime("%Y.%m.%d %H:%M")
     rows = []
 
-    for i, item in enumerate(items[:30], 1):
+    for i, work_name_el in enumerate(work_names[:30], 1):
         try:
-            title_el = (
-                item.select_one(".work_name a") or
-                item.select_one("dt a") or
-                item.select_one("h2 a") or
-                item.select_one("a")
-            )
-            title = title_el.get_text(strip=True) if title_el else "不明"
+            # 親要素をさかのぼって作品カード全体を取得
+            item = work_name_el.find_parent("li") or work_name_el.find_parent("div")
 
-            circle_el = (
-                item.select_one(".maker_name a") or
-                item.select_one(".circle_name a") or
-                item.select_one(".maker_name") or
-                item.select_one(".brand_name a")
-            )
+            title_el = work_name_el.select_one("a") or work_name_el
+            title = title_el.get_text(strip=True)
+
+            circle_el = None
+            if item:
+                circle_el = (
+                    item.select_one(".maker_name a") or
+                    item.select_one(".circle_name a") or
+                    item.select_one(".maker_name") or
+                    item.select_one(".brand_name")
+                )
             circle = circle_el.get_text(strip=True) if circle_el else "不明"
 
-            raw = item.get_text().replace(",", "")
+            raw = item.get_text().replace(",", "") if item else ""
             dl_match = re.search(r"(\d+)DL", raw)
             dl = dl_match.group(1) if dl_match else "0"
 
-            price_el = (
-                item.select_one(".work_price") or
-                item.select_one(".price") or
-                item.select_one(".work_price_wrap")
-            )
+            price_el = None
+            if item:
+                price_el = (
+                    item.select_one(".work_price") or
+                    item.select_one(".price")
+                )
             price_raw = re.sub(r"\D", "", price_el.get_text()) if price_el else "0"
             price = price_raw if price_raw else "0"
 
-            img_el = item.select_one("img")
+            img_el = item.select_one("img") if item else None
             img = ""
             if img_el:
                 img = img_el.get("data-src") or img_el.get("src") or ""
                 if img.startswith("//"):
                     img = "https:" + img
 
-            genres_els = item.select(".work_category a") or item.select(".tag a")
+            genres_els = item.select(".work_category a") or item.select(".tag a") if item else []
             genres = "|".join([g.get_text(strip=True) for g in genres_els])
 
             rows.append([i, title, circle, dl, price, genres, img, now])
             print(f"  {i}. {title[:30]}")
+
         except Exception as e:
             print(f"行{i}エラー: {e}")
             continue
