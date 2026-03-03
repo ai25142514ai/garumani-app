@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import requests
 
 st.set_page_config(page_title="Garumani Analytics Pro", layout="wide")
 
@@ -27,7 +26,6 @@ st.markdown("""
 
 st.markdown('<div class="header-box"><h1 class="main-title">Garumani Analytics</h1><div style="color:#ff4d7d;font-weight:bold;letter-spacing:2px;font-size:0.7rem;">MARKET DATA AGGREGATOR</div></div>', unsafe_allow_html=True)
 
-# GitHubから直接CSVを読み込む
 CSV_URL = "https://raw.githubusercontent.com/ai25142514ai/garumani-app/main/ranking.csv"
 
 try:
@@ -37,7 +35,7 @@ except Exception as e:
     st.warning(f"データ読み込みエラー: {e}")
 
 if not df.empty:
-    if "date" in df.columns and len(df) > 0:
+    if "date" in df.columns:
         st.markdown(f'<div style="text-align:center;color:#888;font-size:0.8rem;margin-bottom:20px;">最終更新: {df["date"].iloc[0]}</div>', unsafe_allow_html=True)
 
     try:
@@ -58,10 +56,10 @@ if not df.empty:
 
     for _, row in df.iterrows():
         dl = int(row["dl"]) if str(row["dl"]).isdigit() else 0
+        price = int(row["price"]) if str(row["price"]).isdigit() else 0
         hit = "neon-hit" if dl >= 10000 else ""
         badge = '<div class="neon-label">10K+ TRENDING</div>' if dl >= 10000 else ""
         tags = "".join([f'<span class="tag-item">{t}</span>' for t in str(row["genres"]).split("|") if t])
-        price = int(row["price"]) if str(row["price"]).isdigit() else 0
         st.markdown(
             f'<div class="work-card {hit}">{badge}'
             f'<div class="rank-text">{int(row["rank"]):02d}</div>'
