@@ -26,6 +26,6 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add ranking.csv
+          git add ranking_data.json ranking_history.json tag_ranking.json
           git diff --staged --quiet || git commit -m "Update ranking data"
           git push
