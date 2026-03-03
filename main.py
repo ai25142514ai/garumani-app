@@ -8,85 +8,105 @@ import re
 import plotly.express as px
 
 # --- ページ基本設定 ---
-st.set_page_config(page_title="がるまに♡Tracker Pro", layout="wide")
+st.set_page_config(page_title="がるまに Tracker Pro", layout="wide")
 
-# --- 画像を参考にした「シンプル＆スタイリッシュ」CSS ---
+# --- デザイン：標準絵文字を廃止し、Googleアイコンと洗練されたフォントを採用 ---
 st.markdown("""
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&family=Playfair+Display:ital,wght@1,700&family=Material+Icons+Outlined" rel="stylesheet">
+    
     <style>
-    /* フォント設定と背景色 */
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap');
-    html, body, [class*="css"] { font-family: 'Noto Sans JP', sans-serif; }
-    .stApp { background: #fffcfd; }
+    /* 全体の設定 */
+    html, body, [class*="css"] { font-family: 'Noto Sans JP', sans-serif; color: #4A4A4A; }
+    .stApp { background-color: #fdfaf9; } /* 柔らかなシャンパンホワイト */
     
-    /* 全体の文字色を濃いグレーに固定（見にくさを解消） */
-    h1, h2, h3, h4, h5, p, span, div, li, ul { color: #333333; }
-    
-    /* タイトルのデザイン（画像1の雰囲気を再現） */
-    .cute-title { 
-        color: #ff4d7d; 
-        font-size: 2.2rem; 
-        font-weight: 800; 
-        text-align: center; 
-        margin-bottom: 0.2rem;
-    }
-    .last-updated {
-        color: #888888;
-        text-align: center;
-        font-size: 0.8rem;
-        margin-bottom: 1.5rem;
-    }
-    
-    /* 更新ボタン：ピンクのグラデーション、丸角（画像1を忠実に再現） */
-    div.stButton > button {
-        background: linear-gradient(90deg, #ff80a0 0%, #ff4d7d 100%);
-        color: white;
-        border: none;
-        border-radius: 50px;
-        font-weight: bold;
-        width: 100%;
-        height: 3.2rem;
-        box-shadow: 0 8px 20px rgba(255, 77, 125, 0.3);
-        transition: 0.3s;
-        font-size: 1.1rem;
-    }
-    div.stButton > button:hover { transform: translateY(-3px); box-shadow: 0 12px 25px rgba(255, 77, 125, 0.4); }
+    /* 標準の絵文字を非表示にしたい場合やアイコンの調整 */
+    .material-icons-outlined { vertical-align: middle; font-size: 20px; color: #ff4d7d; }
 
-    /* 作品カード：浮かび上がるような丸角（画像1のレイアウト） */
+    /* ヘッダーセクション */
+    .hero-container {
+        text-align: center;
+        padding: 50px 20px;
+        background: white;
+        border-bottom: 1px solid #f0e6e8;
+        margin-bottom: 40px;
+    }
+    .hero-title {
+        font-family: 'Playfair Display', serif;
+        font-size: 3rem;
+        color: #ff4d7d;
+        margin-bottom: 5px;
+        letter-spacing: -1px;
+    }
+    .hero-subtitle {
+        font-size: 0.9rem;
+        color: #a0a0a0;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+    }
+
+    /* アップデートボタン：絵文字なし・洗練されたデザイン */
+    div.stButton > button {
+        background: #ff4d7d;
+        color: white !important;
+        border: none;
+        border-radius: 4px; /* 丸すぎず少し角を残すスタイリッシュさ */
+        padding: 12px 40px;
+        font-weight: 400;
+        letter-spacing: 1px;
+        transition: 0.4s;
+        width: auto;
+        display: block;
+        margin: 0 auto;
+        box-shadow: 0 4px 15px rgba(255, 77, 125, 0.2);
+    }
+    div.stButton > button:hover {
+        background: #e03e68;
+        box-shadow: 0 6px 20px rgba(255, 77, 125, 0.3);
+    }
+
+    /* 作品カード：参考画像のような清潔感のあるカード */
     .work-card {
         background: white;
-        border-radius: 20px;
-        padding: 18px;
-        margin-bottom: 15px;
-        border: 1px solid #ffeef2;
+        border-radius: 2px; /* 直線的な美しさ */
+        padding: 25px;
+        margin-bottom: 20px;
+        border-left: 4px solid #ff4d7d; /* アクセントライン */
         display: flex;
-        gap: 18px;
+        gap: 25px;
         align-items: center;
-        box-shadow: 0 6px 18px rgba(255, 117, 140, 0.08);
+        box-shadow: 0 2px 10px rgba(0,0,0,0.03);
     }
-    /* 順位バッジ：ピンク背景、白抜き文字 */
-    .rank-badge {
-        background: #ff4d7d;
-        color: white;
-        min-width: 35px;
-        height: 35px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        font-size: 1.1rem;
-    }
-    /* DL数：太字、ピンク */
-    .dl-count {
+    .rank-number {
+        font-family: 'Playfair Display', serif;
+        font-size: 2rem;
+        font-style: italic;
         color: #ff4d7d;
-        font-weight: bold;
-        font-size: 1.2rem;
-        margin-top: 5px;
+        min-width: 40px;
+    }
+    .work-image {
+        width: 120px;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 2px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .work-info h3 { margin: 0; font-size: 1.2rem; color: #333; line-height: 1.4; }
+    .work-circle { color: #888; font-size: 0.85rem; margin-top: 5px; }
+    .work-stats { margin-top: 15px; font-weight: 700; color: #ff4d7d; font-size: 1.1rem; }
+    
+    /* グラフの枠 */
+    .chart-container {
+        background: white;
+        padding: 20px;
+        border-radius: 2px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+        margin-bottom: 40px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-DB_NAME = "garumani_final_styling.db"
+# --- データベース・仕入れ処理 (前回と同じですが改善済) ---
+DB_NAME = "garumani_vfinal.db"
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
@@ -97,35 +117,23 @@ def init_db():
 
 def fetch_data():
     url = "https://www.dlsite.com/girls/ranking/day"
-    # 前回の診断で成功したheadersを使用
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "ja,en-US;q=0.9,en;q=0.8"
-    }
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     try:
         res = requests.get(url, headers=headers, cookies={"adultchecked": "1"}, timeout=15)
         soup = BeautifulSoup(res.content, "html.parser")
         items = soup.select(".n_worklist_item") or soup.select(".work_1column")
-        
         results = []
-        now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
-        
-        for i, item in enumerate(items[:30], 1): # 上位30件
-            try:
-                title_tag = item.select_one(".work_name a") or item.select_one("dt a")
-                title = title_tag.text.strip()
-                circle = (item.select_one(".maker_name") or item.select_one(".circle_name")).text.strip()
-                dl_text = item.text.replace(',', '')
-                dl_match = re.search(r'(\d+)DL', dl_text)
-                dl_count = int(dl_match.group(1)) if dl_match else 0
-                img = item.select_one("img")
-                img_url = img.get('data-src') or img.get('src') or ""
-                if img_url.startswith("//"): img_url = "https:" + img_url
-                genre_tags = item.select(".work_category a") or item.select(".tag a")
-                genres = ", ".join([g.text.strip() for g in genre_tags])
-                results.append((i, title, circle, dl_count, genres, img_url, now))
-            except: continue
-        
+        now = datetime.datetime.now().strftime('%Y.%m.%d %H:%M')
+        for i, item in enumerate(items[:30], 1):
+            title = item.select_one(".work_name").text.strip()
+            circle = item.select_one(".maker_name").text.strip()
+            dl_text = item.text.replace(',', '')
+            dl_match = re.search(r'(\d+)DL', dl_text)
+            dl_count = int(dl_match.group(1)) if dl_match else 0
+            img = item.select_one("img")
+            img_url = "https:" + (img.get('data-src') or img.get('src') or "")
+            genres = ", ".join([a.text for a in item.select(".work_category a")])
+            results.append((i, title, circle, dl_count, genres, img_url, now))
         if results:
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
@@ -137,54 +145,54 @@ def fetch_data():
     except: return False
     return False
 
-# --- メインロジック ---
+# --- メイン画面の表示 ---
+
+# 1. ヘッダー
+st.markdown("""
+    <div class="hero-container">
+        <div class="hero-subtitle">Analytics & Insights</div>
+        <h1 class="hero-title">Garumani Tracker</h1>
+    </div>
+    """, unsafe_allow_html=True)
+
+# 2. アップデートボタン
+if st.button("UPDATE LATEST DATA"):
+    with st.spinner("Fetching..."):
+        if fetch_data(): st.rerun()
+
 init_db()
 conn = sqlite3.connect(DB_NAME)
 df = pd.read_sql("SELECT * FROM rankings ORDER BY rank ASC", conn)
 conn.close()
 
-# アプリヘッダー（画像にある最終更新日時を追加）
-st.markdown('<div class="cute-title">🎀 がるまに♡Tracker Pro</div>', unsafe_allow_html=True)
 if not df.empty:
-    st.markdown(f'<div class="last-updated">最終更新: {df["updated_at"].iloc[0]}</div>', unsafe_allow_html=True)
-else:
-    st.markdown(f'<div class="last-updated">まだデータがありません。下のボタンを押して仕入れよう！</div>', unsafe_allow_html=True)
-
-# アクション：ピンクのグラデーションボタン
-if st.button("✨ 最新ランキングにアップデート"):
-    with st.spinner("DLsiteから魔法をかけています..."):
-        if fetch_data():
-            st.toast("仕入れ完了！最新の状態だよ♡")
-            st.rerun()
-
-st.divider()
-
-if not df.empty:
-    # 📊 ジャンル推移・分析グラフ（スタイリッシュで情報量が多いので維持）
-    st.markdown("### 📊 人気ジャンルトレンド (Top 30)")
+    # 3. ジャンル分析（グラフも配色を洗練）
+    st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+    st.markdown("#### <span class='material-icons-outlined'>trending_up</span> Trend Analysis", unsafe_allow_html=True)
     all_genres = []
-    for g_str in df['genres'].dropna().str.split(', '):
-        all_genres.extend(g_str)
-    
-    if all_genres:
-        genre_counts = pd.Series(all_genres).value_counts().head(8).reset_index()
-        genre_counts.columns = ['ジャンル', '作品数']
-        fig = px.bar(genre_counts, x='作品数', y='ジャンル', orientation='h', 
-                     color='作品数', color_continuous_scale='RdPu', text='作品数')
-        fig.update_layout(height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0,r=0,t=0,b=0))
-        st.plotly_chart(fig, use_container_width=True)
+    for g in df['genres'].str.split(', '): all_genres.extend(g)
+    g_df = pd.Series(all_genres).value_counts().head(8).reset_index()
+    g_df.columns = ['Genre', 'Count']
+    fig = px.bar(g_df, x='Count', y='Genre', orientation='h', 
+                 color='Count', color_continuous_scale=['#fce4ec', '#ff4d7d'])
+    fig.update_layout(height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+                      margin=dict(l=0,r=0,t=20,b=0), showlegend=False)
+    st.plotly_chart(fig, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # 🏆 ランキング（画像にあるカード型レイアウトを忠実に再現）
-    st.markdown("### 🏆 今日のデイリーランキング")
+    # 4. ランキングリスト
+    st.markdown(f"#### <span class='material-icons-outlined'>list_alt</span> Daily Ranking / {df['updated_at'].iloc[0]}", unsafe_allow_html=True)
     for _, row in df.iterrows():
         st.markdown(f"""
             <div class="work-card">
-                <div class="rank-badge">{row['rank']}</div>
-                <img src="{row['thumbnail_url']}" style="width:100px; height:100px; object-fit:cover; border-radius:15px; border:1px solid #ffccd9;">
-                <div style="flex:1;">
-                    <div style="font-weight:bold; font-size:1.05rem; line-height:1.4;">{row['title']}</div>
-                    <div style="color:#666666; font-size:0.85rem; margin-top:3px;">サークル: {row['circle_name']}</div>
-                    <div class="dl-count">📥 {row['dl_count']:,} DL</div>
+                <div class="rank-number">{row['rank']:02d}</div>
+                <img src="{row['thumbnail_url']}" class="work-image">
+                <div class="work-info">
+                    <h3>{row['title']}</h3>
+                    <div class="work-circle">{row['circle_name']}</div>
+                    <div class="work-stats">{row['dl_count']:,} <span style="font-size:0.8rem; font-weight:400;">DL</span></div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
+else:
+    st.info("No data available. Please click the update button above.")
