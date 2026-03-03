@@ -8,111 +8,172 @@ import re
 import plotly.express as px
 
 # --- ページ基本設定 ---
-st.set_page_config(page_title="Garumani Analytics Pro", layout="wide")
+st.set_page_config(page_title="Garumani Analytics | Professional", layout="wide")
 
-# --- プロフェッショナル・ダッシュボード CSS ---
+# --- プロ仕様の「重厚感」と「美しさ」を両立したCSS ---
 st.markdown("""
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&family=Playfair+Display:ital,wght@0,700;1,700&family=Material+Icons+Outlined" rel="stylesheet">
     <style>
-    /* 全体設定 */
-    html, body, [class*="css"] { font-family: 'Noto Sans JP', sans-serif; color: #2c3e50; }
-    .stApp { background-color: #fdfaf9; }
+    /* 全体背景：単なる白ではなく、高級感のあるグレイッシュピンクの超微細グラデーション */
+    .stApp {
+        background: radial-gradient(circle at top left, #fffafb 0%, #f7f9fc 100%);
+        font-family: 'Noto Sans JP', sans-serif;
+        color: #2c3e50;
+    }
     
-    /* UIノイズの除去 */
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    .stDeployButton {display:none;}
-    
-    /* ヘッダーエリア */
-    .dashboard-header {
-        text-align: left;
-        padding: 40px 0;
-        border-bottom: 2px solid #2c3e50;
-        margin-bottom: 40px;
+    /* UIノイズの完全除去 */
+    #MainMenu, header, footer, .stDeployButton { visibility: hidden; display: none !important; }
+
+    /* タイトルエリア：ファッション誌の表紙のようなタイポグラフィ */
+    .header-section {
+        padding: 60px 0 40px 0;
+        text-align: center;
+        border-bottom: 1px solid #e1e8ed;
+        margin-bottom: 50px;
+        background: white;
     }
     .main-title {
         font-family: 'Playfair Display', serif;
-        font-size: 3.5rem;
+        font-size: 4rem;
+        font-weight: 700;
         color: #2c3e50 !important;
-        line-height: 1;
         margin: 0;
+        letter-spacing: -2px;
     }
-    
-    /* アップデートボタン */
+    .sub-title {
+        font-size: 0.75rem;
+        letter-spacing: 5px;
+        color: #ff4d7d;
+        font-weight: 700;
+        text-transform: uppercase;
+        margin-top: 10px;
+    }
+
+    /* 集計ボタン：プロのツールらしい重厚なデザイン */
     div.stButton > button {
         background: #2c3e50;
         color: white !important;
         border: none;
         border-radius: 0;
-        padding: 15px 50px;
+        padding: 18px 60px;
         font-weight: 700;
-        letter-spacing: 2px;
-        transition: 0.3s;
-        margin: 20px 0;
+        letter-spacing: 3px;
+        transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+        margin: 20px auto;
+        display: block;
     }
-    div.stButton > button:hover { background: #ff4d7d; }
+    div.stButton > button:hover {
+        background: #ff4d7d;
+        transform: scale(1.02);
+        box-shadow: 0 20px 40px rgba(255, 77, 125, 0.2);
+    }
 
-    /* 作品カード共通 */
+    /* 分析セクションのコンテナ */
+    .analysis-card {
+        background: white;
+        padding: 40px;
+        border: 1px solid #f0f3f5;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.02);
+        margin-bottom: 50px;
+    }
+
+    /* 作品カード：プロのリストレイアウト */
     .work-card {
         background: white;
-        padding: 25px;
+        padding: 30px;
         margin-bottom: 25px;
         display: flex;
-        gap: 30px;
-        align-items: center;
-        transition: 0.3s;
+        gap: 35px;
+        align-items: flex-start;
+        border: 1px solid #f0f3f5;
+        transition: 0.3s ease;
         position: relative;
     }
-
-    /* 【重要】10,000DL超えのネオン枠エフェクト */
+    
+    /* 10,000DL超えのネオン枠（大ヒット作への特別扱い） */
     .neon-frame {
         border: 2px solid #ff4d7d;
-        box-shadow: 0 0 15px #ff4d7d, inset 0 0 10px #ff4d7d;
-        animation: pulse 2s infinite;
+        box-shadow: 0 0 20px rgba(255, 77, 125, 0.4);
+        background: linear-gradient(90deg, #ffffff 0%, #fff9fa 100%);
     }
-    @keyframes pulse {
-        0% { box-shadow: 0 0 10px #ff4d7d; }
-        50% { box-shadow: 0 0 25px #ff4d7d; }
-        100% { box-shadow: 0 0 10px #ff4d7d; }
+    .neon-badge {
+        position: absolute;
+        top: -10px;
+        right: 20px;
+        background: #ff4d7d;
+        color: white;
+        padding: 4px 12px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        box-shadow: 0 5px 15px rgba(255, 77, 125, 0.4);
     }
 
     .rank-num {
         font-family: 'Playfair Display', serif;
-        font-size: 3rem;
+        font-size: 3.5rem;
         font-style: italic;
-        color: #e0e0e0;
-        min-width: 60px;
+        color: #f1f3f5;
+        line-height: 1;
+        min-width: 70px;
     }
-    .work-image { width: 130px; height: 130px; object-fit: cover; border: 1px solid #eee; }
-    .work-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; font-weight: 700; color: #2c3e50 !important; margin-bottom: 10px; }
+    
+    .work-thumb {
+        width: 140px;
+        height: 140px;
+        object-fit: cover;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+    }
+
+    .work-content { flex: 1; }
+    .work-title {
+        font-family: 'Playfair Display', serif;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #2c3e50 !important;
+        line-height: 1.3;
+        margin-bottom: 8px;
+    }
+    
+    .circle-name { color: #95a5a6; font-size: 0.85rem; margin-bottom: 15px; }
     
     /* タグのデザイン */
-    .tag-box { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
-    .tag { background: #f0f2f6; color: #5d6d7e; font-size: 0.75rem; padding: 4px 12px; font-weight: 700; }
-    
-    .price-dl-box { display: flex; gap: 20px; font-size: 0.9rem; font-weight: 700; }
-    .dl-highlight { color: #ff4d7d; font-size: 1.2rem; }
+    .tag-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+    .tag-item {
+        background: #f8f9fa;
+        color: #5d6d7e;
+        padding: 4px 14px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        border: 1px solid #edf2f7;
+    }
+
+    /* 数値情報：濃いグレーで見やすく */
+    .metrics-box {
+        display: flex;
+        gap: 30px;
+        padding-top: 15px;
+        border-top: 1px solid #f1f3f5;
+    }
+    .metric-item { display: flex; flex-direction: column; }
+    .metric-label { font-size: 0.65rem; color: #adb5bd; letter-spacing: 1px; margin-bottom: 3px; }
+    .metric-value { font-family: 'Playfair Display', serif; font-size: 1.2rem; font-weight: 700; color: #2c3e50; }
+    .dl-premium { color: #ff4d7d; }
+
     </style>
     """, unsafe_allow_html=True)
 
-DB_NAME = "garumani_analytics.db"
+DB_NAME = "garumani_pro_v1.db"
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS rankings (rank INTEGER, title TEXT, circle TEXT, dl INTEGER, price INTEGER, genres TEXT, img TEXT, date TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS data (rank INTEGER, title TEXT, circle TEXT, dl INTEGER, price INTEGER, genres TEXT, img TEXT, date TEXT)''')
     conn.commit()
     conn.close()
 
 def fetch_data():
     url = "https://www.dlsite.com/girls/ranking/day"
-    # より強力な擬装ヘッダー
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
-    }
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     try:
         res = requests.get(url, headers=headers, cookies={"adultchecked": "1"}, timeout=15)
         soup = BeautifulSoup(res.content, "html.parser")
@@ -126,13 +187,12 @@ def fetch_data():
                 title = (item.select_one(".work_name") or item.select_one("dt a")).get_text(strip=True)
                 circle = (item.select_one(".maker_name") or item.select_one(".circle_name")).get_text(strip=True)
                 
-                # 数値データの抽出
                 raw_text = item.get_text().replace(',', '')
                 dl_match = re.search(r'(\d+)DL', raw_text)
                 dl = int(dl_match.group(1)) if dl_match else 0
                 
-                price_text = (item.select_one(".work_price") or item.select_one(".price")).get_text(strip=True)
-                price = int(re.sub(r'\D', '', price_text)) if price_text else 0
+                price_tag = item.select_one(".work_price") or item.select_one(".price")
+                price = int(re.sub(r'\D', '', price_tag.get_text())) if price_tag else 0
                 
                 img = item.select_one("img").get('data-src') or item.select_one("img").get('src')
                 if img.startswith("//"): img = "https:" + img
@@ -146,8 +206,8 @@ def fetch_data():
         if results:
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
-            c.execute("DELETE FROM rankings")
-            c.executemany("INSERT INTO rankings VALUES (?,?,?,?,?,?,?,?)", results)
+            c.execute("DELETE FROM data")
+            c.executemany("INSERT INTO data VALUES (?,?,?,?,?,?,?,?)", results)
             conn.commit()
             conn.close()
             return True
@@ -157,55 +217,68 @@ def fetch_data():
 # --- メインロジック ---
 init_db()
 conn = sqlite3.connect(DB_NAME)
-df = pd.read_sql("SELECT * FROM rankings ORDER BY rank ASC", conn)
+df = pd.read_sql("SELECT * FROM data ORDER BY rank ASC", conn)
 conn.close()
 
 # 1. ヘッダー
-st.markdown(f"""
-    <div class="dashboard-header">
-        <p style="letter-spacing:4px; font-size:0.8rem; margin:0; color:#888;">MARKET DATA AGGREGATION</p>
+st.markdown("""
+    <div class="header-section">
         <h1 class="main-title">Garumani Analytics</h1>
+        <div class="sub-title">Professional Market Insight</div>
     </div>
     """, unsafe_allow_html=True)
 
 if st.button("RUN DATA AGGREGATOR"):
-    if fetch_data(): st.rerun()
+    with st.spinner("Aggregating market data..."):
+        if fetch_data(): st.rerun()
 
 if not df.empty:
-    # 2. ジャンル推移・占有率分析
-    st.markdown("### <span class='material-icons-outlined'>donut_large</span> Market Genre Share", unsafe_allow_html=True)
+    # 2. ジャンル占有率・マーケット分析
+    st.markdown('<div class="analysis-card">', unsafe_allow_html=True)
+    st.markdown("### <span class='material-icons-outlined'>donut_large</span> Market Genre Distribution", unsafe_allow_html=True)
+    
     all_genres = []
     for gs in df['genres'].str.split('|'): all_genres.extend(gs)
-    g_counts = pd.Series(all_genres).value_counts().head(10).reset_index()
+    g_counts = pd.Series(all_genres).value_counts().head(12).reset_index()
     g_counts.columns = ['Genre', 'Count']
     
-    fig = px.pie(g_counts, values='Count', names='Genre', hole=0.6, 
+    fig = px.pie(g_counts, values='Count', names='Genre', hole=0.7, 
                  color_discrete_sequence=px.colors.sequential.RdPu_r)
-    fig.update_layout(height=400, margin=dict(l=0,r=0,t=0,b=0))
+    fig.update_layout(height=450, margin=dict(l=0,r=0,t=0,b=0), 
+                      paper_bgcolor='rgba(0,0,0,0)', font=dict(family="Playfair Display", size=14))
     st.plotly_chart(fig, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # 3. 集計リスト
-    st.markdown(f"### <span class='material-icons-outlined'>analytics</span> Insights Report / {df['date'].iloc[0]}", unsafe_allow_html=True)
+    # 3. 集計レポート
+    st.markdown(f"### <span class='material-icons-outlined'>article</span> Daily Report / {df['date'].iloc[0]}", unsafe_allow_html=True)
     
     for _, row in df.iterrows():
-        # 10,000DL超え判定
-        neon_class = "neon-frame" if row['dl'] >= 10000 else ""
-        tags_html = "".join([f'<span class="tag">{t}</span>' for t in row['genres'].split('|')])
+        is_hit = row['dl'] >= 10000
+        neon_style = "neon-frame" if is_hit else ""
+        badge_html = '<div class="neon-badge">10K+ HALL OF FAME</div>' if is_hit else ""
+        tags_html = "".join([f'<span class="tag-item">{t}</span>' for t in row['genres'].split('|')])
         
         st.markdown(f"""
-            <div class="work-card {neon_class}">
+            <div class="work-card {neon_style}">
+                {badge_html}
                 <div class="rank-num">{row['rank']:02d}</div>
-                <img src="{row['img']}" class="work-image">
-                <div style="flex:1;">
+                <img src="{row['img']}" class="work-thumb">
+                <div class="work-content">
                     <div class="work-title">{row['title']}</div>
-                    <div style="color:#888; font-size:0.85rem;">{row['circle']}</div>
-                    <div class="tag-box">{tags_html}</div>
-                    <div class="price-dl-box">
-                        <span>PRICE: ¥{row['price']:,}</span>
-                        <span class="dl-highlight">TOTAL: {row['dl']:,} DL</span>
+                    <div class="circle-name">{row['circle']}</div>
+                    <div class="tag-container">{tags_html}</div>
+                    <div class="metrics-box">
+                        <div class="metric-item">
+                            <span class="metric-label">PRICE</span>
+                            <span class="metric-value">¥{row['price']:,}</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">DOWNLOADS</span>
+                            <span class="metric-value dl-premium">{row['dl']:,} DL</span>
+                        </div>
                     </div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
 else:
-    st.info("集計システムを起動してください。")
+    st.info("集計システムは待機中です。中央のボタンを押して開始してください。")
