@@ -6,7 +6,7 @@ import time
 import os
 from bs4 import BeautifulSoup
 
-RANKING_URL = "https://www.dlsite.com/girls/ranking/day"
+RANKING_URL = "https://www.dlsite.com/girls-touch/ranking/day"
 HISTORY_FILE = "ranking_history.json"
 
 HEADERS = {
