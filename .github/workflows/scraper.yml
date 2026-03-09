@@ -31,6 +31,7 @@ jobs:
           res.encoding="utf-8"
           soup=BeautifulSoup(res.text,"lxml")
           print("page length:",len(res.text))
+          print(res.text[5000:6000])
           for sel in ["tr.ranking_list_item","li.work_list_item",".n_worklist","tr.worklist"]:
             found=soup.select(sel)
             print(sel,"->",len(found))
