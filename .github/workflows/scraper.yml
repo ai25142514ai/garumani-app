@@ -29,13 +29,13 @@ jobs:
             "User-Agent":UA,
             "Accept-Language":"ja,en;q=0.9",
             "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Referer":"https://www.dlsite.com/girls-touch/ranking/day"
+            "Referer":"https://www.dlsite.com/girls/ranking/day"
           }
           session=requests.Session()
           session.headers.update(H)
-          session.get("https://www.dlsite.com/girls-touch/",timeout=15)
+          session.get("https://www.dlsite.com/girls/",timeout=15)
           time.sleep(1)
-          URL="https://www.dlsite.com/girls-touch/ranking/day"
+          URL="https://www.dlsite.com/girls/ranking/day"
           res=session.get(URL,timeout=30)
           res.encoding="utf-8"
           matches=re.findall(r'RJ\d{6,8}',res.text)
@@ -43,15 +43,19 @@ jobs:
           unique=[x for x in matches if not (x in seen or seen.add(x))][:30]
           print("work IDs found:",len(unique))
           items=[]
+          SKIP={"ジャンル一覧","ジャンル一覧へ","お気に入り","カート","購入","レビュー","もっと見る","トップ","検索","ホーム","マイページ","通知","ヘルプ"}
           for i,wid in enumerate(unique):
             try:
               time.sleep(1.2)
-              wurl="https://www.dlsite.com/girls-touch/work/=/product_id/"+wid+".html"
+              wurl="https://www.dlsite.com/girls/work/=/product_id/"+wid+".html"
               wr=session.get(wurl,timeout=20,allow_redirects=True)
               wr.encoding="utf-8"
               ws=BeautifulSoup(wr.text,"lxml")
               title=ws.select_one("h1#work_name")
-              title=title.text.strip() if title else wid
+              title=title.text.strip() if title else ""
+              if not title:
+                og=ws.select_one("meta[property='og:title']")
+                title=og.get("content","").strip() if og else wid
               circle=ws.select_one("span.maker_name a") or ws.select_one("a.maker_name")
               circle=circle.text.strip() if circle else ""
               img=""
@@ -70,18 +74,10 @@ jobs:
                   if img:break
               if img.startswith("//"):img="https:"+img
               tags=[]
-              for a in ws.select(
-                "div.main_genre a,"
-                "a.genre_tag,"
-                "div.work_genre a,"
-                ".work_genre a,"
-                "#work_genre a,"
-                "td.genre a,"
-                ".search_tag a,"
-                "a[href*='/genre/']"
-              ):
+              for a in ws.select("div.main_genre a, a.genre_tag, div.work_genre a, .work_genre a, #work_genre a, td.genre a, .search_tag a"):
                 t=a.text.strip()
-                if t and t not in tags:tags.append(t)
+                if t and t not in tags and t not in SKIP and len(t)>1:
+                  tags.append(t)
               dl_count=0
               price=0
               release_date=""
