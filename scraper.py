@@ -5,7 +5,7 @@ import os
 import time
 from datetime import datetime, timezone, timedelta
 
-RANKING_URL = “https://www.dlsite.com/girls-touch/ranking/day”
+RANKING_URL = "https://www.dlsite.com/girls-touch/ranking/day"
 HISTORY_FILE = “ranking_history.json”
 RANKING_FILE = “ranking_data.json”
 TAG_FILE = “tag_ranking.json”
