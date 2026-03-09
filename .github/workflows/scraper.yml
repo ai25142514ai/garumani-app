@@ -32,8 +32,10 @@ jobs:
             res.encoding="utf-8"
             soup=BeautifulSoup(res.text,"lxml")
             items=[]
-            for row in soup.select("tr.ranking_list_item"):
-              try:
+           rows=soup.select("tr.ranking_list_item") or soup.select("li.work_list_item") or soup.select(".n_worklist")
+print("rows found:",len(rows))
+for row in rows:
+
                 re=row.select_one("td.ranking_num")
                 te=row.select_one("dt.work_name a")
                 if not re or not te:continue
