@@ -93,204 +93,184 @@ footer{position:fixed;bottom:0;left:0;right:0;background:rgba(13,0,16,0.95);bord
 </main>
 <footer>&#x30C7;&#x30FC;&#x30BF;&#x306F;&#x6BCE;&#x65E5;&#x6DF1;&#x591C;0&#x6642;&#x9803;&#x306B;&#x81EA;&#x52D5;&#x66F4;&#x65B0;&#x3055;&#x308C;&#x307E;&#x3059;</footer>
 <script>
-var BASE='https://ai25142514ai.github.io/garumani-app/';
-var chartInstances={};
-var lastRefreshTime=0;
-var REFRESH_COOLDOWN=3600000;
-var countdownInterval=null;
+var chartInstances = {};
+var lastRefreshTime = 0;
+var REFRESH_COOLDOWN = 3600000;
+var countdownInterval = null;
+var BASE = 'https://ai25142514ai.github.io/garumani-app/';
 
-function fetchJSON(f){
-return fetch(BASE+f+’?t=’+Date.now()).then(function(r){
-if(!r.ok) throw new Error(‘err’);
-return r.json();
-});
+function loadJSON(filename, callback) {
+var url = BASE + filename + ‘?t=’ + Date.now();
+var xhr = new XMLHttpRequest();
+xhr.open(‘GET’, url, true);
+xhr.onreadystatechange = function() {
+if (xhr.readyState !== 4) return;
+if (xhr.status === 200) {
+try { callback(null, JSON.parse(xhr.responseText)); }
+catch(e) { callback(‘parse:’ + e.message, null); }
+} else {
+callback(‘HTTP’ + xhr.status, null);
+}
+};
+xhr.onerror = function() { callback(‘network’, null); };
+xhr.send();
 }
 
-function esc(s){
-var d=document.createElement(‘div’);
-d.textContent=String(s);
+function esc(s) {
+var d = document.createElement(‘div’);
+d.textContent = String(s || ‘’);
 return d.innerHTML;
 }
 
-function switchTab(tab){
-var names=[‘ranking’,‘tags’,‘graph’];
-document.querySelectorAll(’.tab’).forEach(function(el,i){
-el.classList.toggle(‘active’,names[i]===tab);
-});
-names.forEach(function(n){
-document.getElementById(n+‘Section’).style.display=n===tab?‘block’:‘none’;
-});
+function switchTab(tab) {
+var names = [‘ranking’,‘tags’,‘graph’];
+document.querySelectorAll(’.tab’).forEach(function(el,i){ el.classList.toggle(‘active’, names[i]===tab); });
+names.forEach(function(n){ document.getElementById(n+‘Section’).style.display = n===tab?‘block’:‘none’; });
 }
 
-function spawnHearts(x,y){
-var hearts=[’\u{1F49C}’,’\u{1F497}’,’\u{1F495}’,’\u2728’,’\u{1F4AB}’];
+function spawnHearts(x,y) {
+var hearts = [’\u{1F49C}’,’\u{1F497}’,’\u{1F495}’,’\u2728’,’\u{1F4AB}’];
 for(var i=0;i<5;i++){
 (function(idx){
 setTimeout(function(){
-var el=document.createElement(‘div’);
-el.className=‘heart-particle’;
-el.textContent=hearts[Math.floor(Math.random()*hearts.length)];
-el.style.left=(x+(Math.random()-0.5)*60)+‘px’;
-el.style.top=(y+(Math.random()-0.5)*20)+‘px’;
-el.style.fontSize=(14+Math.random()*14)+‘px’;
+var el = document.createElement(‘div’);
+el.className = ‘heart-particle’;
+el.textContent = hearts[Math.floor(Math.random()*hearts.length)];
+el.style.left = (x+(Math.random()-0.5)*60)+‘px’;
+el.style.top = (y+(Math.random()-0.5)*20)+‘px’;
+el.style.fontSize = (14+Math.random()*14)+‘px’;
 document.body.appendChild(el);
-setTimeout(function(){el.remove();},1300);
-},idx*80);
+setTimeout(function(){ el.remove(); }, 1300);
+}, idx*80);
 })(i);
 }
 }
-document.addEventListener(‘click’,function(e){
-if(e.target.closest(’.rank-card’)) spawnHearts(e.clientX,e.clientY);
-});
+document.addEventListener(‘click’, function(e){ if(e.target.closest(’.rank-card’)) spawnHearts(e.clientX, e.clientY); });
 
-function manualRefresh(){
-var now=Date.now();
-var btn=document.getElementById(‘refreshBtn’);
-if(now-lastRefreshTime<REFRESH_COOLDOWN){
-var r=Math.ceil((REFRESH_COOLDOWN-(now-lastRefreshTime))/60000);
-btn.textContent=r+’分後’;return;
+function manualRefresh() {
+var now = Date.now();
+var btn = document.getElementById(‘refreshBtn’);
+if(now-lastRefreshTime < REFRESH_COOLDOWN){
+btn.textContent = Math.ceil((REFRESH_COOLDOWN-(now-lastRefreshTime))/60000)+‘分後’; return;
 }
-lastRefreshTime=now;btn.disabled=true;btn.textContent=’読込中…’;
-loadData().then(function(){
-btn.textContent=‘OK’;
-setTimeout(startCountdown,1000);
-}).catch(function(){
-btn.disabled=false;btn.textContent=’🔄 更新’;
-});
+lastRefreshTime = now; btn.disabled = true; btn.textContent = ‘読込中…’;
+loadData(function(){ btn.textContent=‘OK’; setTimeout(startCountdown,1000); });
 }
 
-function startCountdown(){
+function startCountdown() {
 if(countdownInterval) clearInterval(countdownInterval);
-var btn=document.getElementById(‘refreshBtn’);
-btn.disabled=true;
-countdownInterval=setInterval(function(){
-var r=Math.ceil((REFRESH_COOLDOWN-(Date.now()-lastRefreshTime))/60000);
-if(r<=0){clearInterval(countdownInterval);btn.disabled=false;btn.textContent=’🔄 更新’;}
-else btn.textContent=r+’分後’;
-},10000);
+var btn = document.getElementById(‘refreshBtn’);
+btn.disabled = true;
+countdownInterval = setInterval(function(){
+var r = Math.ceil((REFRESH_COOLDOWN-(Date.now()-lastRefreshTime))/60000);
+if(r<=0){ clearInterval(countdownInterval); btn.disabled=false; btn.textContent=‘🔄 更新’; }
+else btn.textContent = r+‘分後’;
+}, 10000);
 }
 
-function renderRanking(data){
-document.getElementById(‘lastUpdated’).textContent=data.date?data.date+’ 更新’:’’;
-var items=data.items||[];
-var html=’’;
+function renderRanking(data) {
+document.getElementById(‘lastUpdated’).textContent = data.date ? data.date+’ 更新’ : ‘’;
+var items = data.items || [];
+var html = ‘’;
 items.forEach(function(item,idx){
-var isMega=(item.dl_count||0)>=10000;
-var tags=(item.tags||[]).slice(0,4);
-var dlStr=item.dl_count?item.dl_count.toLocaleString()+‘DL’:’’;
-var priceStr=item.price?item.price.toLocaleString()+’円’:’’;
-var circle=item.circle||item.author||’’;
-var badge=item.rank<=3?‘r’+item.rank:‘other’;
-var imgHtml=item.img
-? ‘<img src="'+item.img+'" alt="" loading="lazy" onerror="this.parentNode.innerHTML=\'<div class=thumb-placeholder>\u{1F4D6}</div>\'">’
-: ‘<div class="thumb-placeholder">\u{1F4D6}</div>’;
-html+=’<a class="rank-card'+(isMega?' mega-hit':'')+'" href="'+(item.url||'#')+'" target="_blank" rel="noopener" style="animation-delay:'+idx*0.04+'s">’;
-html+=’<div class="thumb-wrap">’+imgHtml+’<div class="rank-badge '+badge+'">’+item.rank+’</div></div>’;
-html+=’<div class="card-info">’;
-html+=’<div class="card-title">’+esc(item.title)+’</div>’;
-if(circle) html+=’<div class="card-circle">’+esc(circle)+’</div>’;
-html+=’<div class="card-meta">’;
-if(dlStr) html+=’<span class="meta-item dl">’+esc(dlStr)+(isMega?’ <span style="font-size:9px;background:linear-gradient(135deg,#ffd700,#ffaa00);color:#000;padding:1px 5px;border-radius:4px;font-weight:900;">1万超え</span>’:’’)+’</span>’;
-if(priceStr) html+=’<span class="meta-item price">’+priceStr+’</span>’;
-if(item.release_date) html+=’<span class="meta-item">’+esc(item.release_date)+’</span>’;
-html+=’</div>’;
-if(tags.length){
-html+=’<div class="card-tags">’;
-tags.forEach(function(t){html+=’<span class="tag">’+esc(t)+’</span>’;});
-html+=’</div>’;
-}
-html+=’</div></a>’;
+var isMega = (item.dl_count||0) >= 10000;
+var tags = (item.tags||[]).slice(0,4);
+var dlStr = item.dl_count ? item.dl_count.toLocaleString()+‘DL’ : ‘’;
+var priceStr = item.price ? item.price.toLocaleString()+‘円’ : ‘’;
+var circle = item.circle || item.author || ‘’;
+var badge = item.rank<=3 ? ‘r’+item.rank : ‘other’;
+var imgHtml = item.img
+? ‘<img src="'+item.img+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">’
+: ‘<div class="thumb-placeholder">📖</div>’;
+html += ‘<a class="rank-card'+(isMega?' mega-hit':'')+'" href="'+(item.url||'#')+'" target="_blank" rel="noopener" style="animation-delay:'+idx*0.04+'s">’;
+html += ‘<div class="thumb-wrap">’+imgHtml+’<div class="rank-badge '+badge+'">’+item.rank+’</div></div>’;
+html += ‘<div class="card-info">’;
+html += ‘<div class="card-title">’+esc(item.title)+’</div>’;
+if(circle) html += ‘<div class="card-circle">’+esc(circle)+’</div>’;
+html += ‘<div class="card-meta">’;
+if(dlStr) html += ‘<span class="meta-item dl">’+esc(dlStr)+(isMega?’ <span style="font-size:9px;background:linear-gradient(135deg,#ffd700,#ffaa00);color:#000;padding:1px 5px;border-radius:4px;font-weight:900;">1万超え</span>’:’’)+’</span>’;
+if(priceStr) html += ‘<span class="meta-item price">’+priceStr+’</span>’;
+if(item.release_date) html += ‘<span class="meta-item">’+esc(item.release_date)+’</span>’;
+html += ‘</div>’;
+if(tags.length){ html += ‘<div class="card-tags">’; tags.forEach(function(t){ html += ‘<span class="tag">’+esc(t)+’</span>’; }); html += ‘</div>’; }
+html += ‘</div></a>’;
 });
-document.getElementById(‘rankingSection’).innerHTML=html;
+document.getElementById(‘rankingSection’).innerHTML = html;
 }
 
-function renderTags(data){
-var tags=data.tags||[];
-var max=tags.length?tags[0].count:1;
-var html=’<div class="section-title">🏷️ 今日の人気タグ</div><div class="tag-rank-list">’;
+function renderTags(data) {
+var tags = data.tags || [];
+var max = tags.length ? tags[0].count : 1;
+var html = ‘<div class="section-title">🏷️ 今日の人気タグ</div><div class="tag-rank-list">’;
 tags.forEach(function(t,i){
-var cls=i<3?‘t’+(i+1):’’;
-html+=’<div class="tag-rank-item" style="animation-delay:'+i*0.05+'s">’;
-html+=’<div class="tag-rank-num '+cls+'">’+(i+1)+’</div>’;
-html+=’<div class="tag-rank-name">’+esc(t.tag)+’</div>’;
-html+=’<div class="tag-rank-bar-wrap"><div class="tag-rank-bar" style="width:'+Math.round(t.count/max*100)+'%"></div>’;
-html+=’<div class="tag-rank-count">’+t.count+’作品</div></div></div>’;
+var cls = i<3 ? ‘t’+(i+1) : ‘’;
+html += ‘<div class="tag-rank-item" style="animation-delay:'+i*0.05+'s">’;
+html += ‘<div class="tag-rank-num '+cls+'">’+(i+1)+’</div>’;
+html += ‘<div class="tag-rank-name">’+esc(t.tag)+’</div>’;
+html += ‘<div class="tag-rank-bar-wrap"><div class="tag-rank-bar" style="width:'+Math.round(t.count/max*100)+'%"></div>’;
+html += ‘<div class="tag-rank-count">’+t.count+‘作品</div></div></div>’;
 });
-html+=’</div>’;
-document.getElementById(‘tagsSection’).innerHTML=html;
+html += ‘</div>’;
+document.getElementById(‘tagsSection’).innerHTML = html;
 }
 
-function renderGraph(history){
+function renderGraph(history) {
 if(!history||history.length===0){
-document.getElementById(‘graphSection’).innerHTML=’<div class="error-msg">履歴データがまだありません。<br>毎日蓄積されていきます</div>’;
-return;
+document.getElementById(‘graphSection’).innerHTML=’<div class="error-msg">履歴データがまだありません。<br>毎日蓄積されていきます</div>’; return;
 }
 var tagByDate={};
 history.forEach(function(day){
 tagByDate[day.date_key]={};
 (day.items||[]).forEach(function(item){
-(item.tags||[]).forEach(function(tag){
-tagByDate[day.date_key][tag]=(tagByDate[day.date_key][tag]||0)+1;
-});
+(item.tags||[]).forEach(function(tag){ tagByDate[day.date_key][tag]=(tagByDate[day.date_key][tag]||0)+1; });
 });
 });
 var dates=Object.keys(tagByDate).sort();
 var totalTagCount={};
-dates.forEach(function(d){
-Object.entries(tagByDate[d]).forEach(function(e){
-totalTagCount[e[0]]=(totalTagCount[e[0]]||0)+e[1];
-});
-});
+dates.forEach(function(d){ Object.entries(tagByDate[d]).forEach(function(e){ totalTagCount[e[0]]=(totalTagCount[e[0]]||0)+e[1]; }); });
 var topTags=Object.entries(totalTagCount).sort(function(a,b){return b[1]-a[1];}).slice(0,8).map(function(e){return e[0];});
 var colors=[’#ff4da6’,’#b44dff’,’#ff80c8’,’#7a1fa2’,’#ff9de2’,’#d084ff’,’#ffaad4’,’#9b59b6’];
 var datasets=topTags.map(function(tag,i){
-return {
-label:tag,
-data:dates.map(function(d){return tagByDate[d][tag]||0;}),
-borderColor:colors[i%colors.length],
-backgroundColor:colors[i%colors.length]+‘22’,
-borderWidth:2,pointRadius:3,tension:0.4,fill:false
-};
+return {label:tag,data:dates.map(function(d){return tagByDate[d][tag]||0;}),borderColor:colors[i%colors.length],backgroundColor:colors[i%colors.length]+‘22’,borderWidth:2,pointRadius:3,tension:0.4,fill:false};
 });
 if(chartInstances.tagTrend) chartInstances.tagTrend.destroy();
 document.getElementById(‘graphSection’).innerHTML=
 ‘<div class="section-title">📈 タグ人気の推移</div>’+
 ‘<div class="chart-card"><canvas id="chartTagTrend"></canvas>’+
-‘<div class="chart-note">過去’+dates.length+’日間のランキング上位タグの出現数推移</div></div>’;
+‘<div class="chart-note">過去’+dates.length+‘日間のランキング上位タグの出現数推移</div></div>’;
 chartInstances.tagTrend=new Chart(document.getElementById(‘chartTagTrend’).getContext(‘2d’),{
-type:‘line’,
-data:{labels:dates.map(function(d){return d.slice(5);}),datasets:datasets},
-options:{responsive:true,
-plugins:{
-legend:{position:‘bottom’,labels:{color:’#d0a0ff’,font:{size:10},boxWidth:12,padding:8}},
-tooltip:{backgroundColor:’#1a0025’,borderColor:’#3a1050’,borderWidth:1,titleColor:’#ff4da6’,bodyColor:’#f0e0ff’}
-},
-scales:{
-x:{ticks:{color:’#a080b0’,font:{size:10}},grid:{color:‘rgba(180,77,255,0.08)’}},
-y:{ticks:{color:’#a080b0’,font:{size:10}},grid:{color:‘rgba(180,77,255,0.08)’},beginAtZero:true}
-}
-}
+type:‘line’,data:{labels:dates.map(function(d){return d.slice(5);}),datasets:datasets},
+options:{responsive:true,plugins:{legend:{position:‘bottom’,labels:{color:’#d0a0ff’,font:{size:10},boxWidth:12,padding:8}},tooltip:{backgroundColor:’#1a0025’,borderColor:’#3a1050’,borderWidth:1,titleColor:’#ff4da6’,bodyColor:’#f0e0ff’}},scales:{x:{ticks:{color:’#a080b0’,font:{size:10}},grid:{color:‘rgba(180,77,255,0.08)’}},y:{ticks:{color:’#a080b0’,font:{size:10}},grid:{color:‘rgba(180,77,255,0.08)’},beginAtZero:true}}}
 });
 }
 
-function loadData(){
-return Promise.all([
-fetchJSON(‘ranking_data.json’),
-fetchJSON(‘tag_ranking.json’),
-fetchJSON(‘ranking_history.json’).catch(function(){return [];})
-]).then(function(results){
-document.getElementById(‘loading’).style.display=‘none’;
-renderRanking(results[0]);
-renderTags(results[1]);
-renderGraph(results[2]);
+function showError(msg) {
+document.getElementById(‘loading’).innerHTML =
+‘<div class="error-msg"><div style="font-size:36px;margin-bottom:12px">😢</div>’ +
+‘<div>データの読み込みに失敗しました</div>’ +
+‘<div style="font-size:11px;margin-top:8px;color:#ff8888;word-break:break-all">’+esc(msg)+’</div></div>’;
+}
+
+function loadData(done) {
+loadJSON(‘ranking_data.json’, function(err1, r) {
+if(err1 || !r) { showError(’ranking_data.json: ’+(err1||‘null’)); if(done) done(); return; }
+loadJSON(‘tag_ranking.json’, function(err2, t) {
+var tagD = t || {tags:[]};
+loadJSON(‘ranking_history.json’, function(err3, h) {
+var hist = h || [];
+document.getElementById(‘loading’).style.display = ‘none’;
+renderRanking(r);
+renderTags(tagD);
+renderGraph(hist);
 switchTab(‘ranking’);
-document.getElementById(‘rankingSection’).style.display=‘block’;
+document.getElementById(‘rankingSection’).style.display = ‘block’;
+if(done) done();
+});
+});
 });
 }
 
-loadData().catch(function(){
-document.getElementById(‘loading’).innerHTML=’<div class="error-msg"><div style="font-size:40px;margin-bottom:12px">\u{1F622}</div><div>データの読み込みに失敗しました</div></div>’;
-});
+loadData();
 </script>
 
 </body>
