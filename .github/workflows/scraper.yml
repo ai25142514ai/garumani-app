@@ -45,15 +45,20 @@ jobs:
               title=title.text.strip() if title else wid
               circle=ws.select_one("span.maker_name a") or ws.select_one("a.maker_name")
               circle=circle.text.strip() if circle else ""
-              img=ws.select_one("img.work_thumb") or ws.select_one(".slider_item img")
-              img=img.get("src","") if img else ""
+              img=""
+              for sel in ["meta[property='og:image']","img.work_thumb","img#work_main_img",".product-slider img","img[src*='img_main']"]:
+                el=ws.select_one(sel)
+                if el:
+                  img=el.get("content") or el.get("src","")
+                  if img:break
               if img.startswith("//"):img="https:"+img
               tags=[]
-              for a in ws.select("div.main_genre a,a.genre_tag"):
+              for a in ws.select("div.main_genre a,a.genre_tag,div.work_genre a,.work_genre a"):
                 t=a.text.strip()
-                if t:tags.append(t)
+                if t and t not in tags:tags.append(t)
               dl_count=0
               price=0
+              release_date=""
               for tr in ws.select("table#work_outline tr"):
                 th=tr.select_one("th")
                 td=tr.select_one("td")
@@ -65,8 +70,10 @@ jobs:
                 elif "\u5024\u6bb5" in lb or "\u4fa1\u683c" in lb:
                   try:price=int(td.text.strip().replace(",","").replace("\u5186","").replace("\xa5",""))
                   except:pass
-              items.append({"rank":i+1,"title":title,"url":wurl,"img":img,"circle":circle,"author":"","release_date":"","dl_count":dl_count,"price":price,"tags":tags})
-              print(i+1,title[:20])
+                elif "\u8ca9\u58f2\u65e5" in lb:
+                  release_date=td.text.strip()
+              print(i+1,title[:20],"img:",bool(img),"tags:",len(tags))
+              items.append({"rank":i+1,"title":title,"url":wurl,"img":img,"circle":circle,"author":"","release_date":release_date,"dl_count":dl_count,"price":price,"tags":tags})
             except Exception as e:
               print("error:",wid,e)
           def build_tag_data(items):
