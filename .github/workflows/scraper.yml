@@ -24,14 +24,14 @@ jobs:
           now=datetime.now(JST)
           date_str=now.strftime("%Y-%m-%d %H:%M")
           date_key=now.strftime("%Y-%m-%d")
-          URL="https://www.dlsite.com/girls-touch/ranking/day#order=trend&term=day&page=1"
+          URL="https://www.dlsite.com/girls-touch/ranking/ajax?term=day&page=1"
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
           H={"User-Agent":UA,"Accept-Language":"ja,en;q=0.9"}
           res=requests.get(URL,headers=H,timeout=30)
           res.encoding="utf-8"
           soup=BeautifulSoup(res.text,"lxml")
           print("page length:",len(res.text))
-          print(res.text[5000:6000])
+          print(res.text[:2000])
           for sel in ["tr.ranking_list_item","li.work_list_item",".n_worklist","tr.worklist"]:
             found=soup.select(sel)
             print(sel,"->",len(found))
