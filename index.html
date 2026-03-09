@@ -54,13 +54,22 @@ main{max-width:600px;margin:0 auto;padding:14px 12px 80px;position:relative;z-in
 .tag-rank-bar{height:6px;border-radius:3px;background:linear-gradient(90deg,var(--pink),var(--purple));}
 .tag-rank-count{font-size:11px;color:var(--text-muted);margin-top:3px;text-align:right;}
 .chart-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:14px;padding:16px;margin-bottom:14px;}
-.chart-card canvas{max-height:220px;}
+.chart-card canvas{max-height:260px;}
 .chart-note{font-size:10px;color:var(--text-muted);text-align:center;margin-top:8px;}
-footer{position:fixed;bottom:0;left:0;right:0;background:rgba(13,0,16,0.95);border-top:1px solid rgba(180,77,255,0.2);padding:8px 16px;text-align:center;font-size:10px;color:var(--text-muted);z-index:100;}
+
+/* グラフ凡例：タップでオン/オフ */
+.legend-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;justify-content:center;}
+.legend-item{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;border:1px solid rgba(180,77,255,0.3);background:rgba(26,0,37,0.8);cursor:pointer;transition:all 0.2s;user-select:none;-webkit-user-select:none;}
+.legend-item.hidden{opacity:0.35;background:rgba(26,0,37,0.4);}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.legend-label{font-size:11px;color:var(–text);font-weight:700;}
+
+footer{position:fixed;bottom:0;left:0;right:0;background:rgba(13,0,16,0.95);border-top:1px solid rgba(180,77,255,0.2);padding:8px 16px;text-align:center;font-size:10px;color:var(–text-muted);z-index:100;}
 .heart-particle{position:fixed;pointer-events:none;z-index:9999;animation:heartFloat 1.2s ease-out forwards;}
 @keyframes heartFloat{0%{opacity:1;transform:translateY(0) scale(1);}100%{opacity:0;transform:translateY(-120px) scale(1.6);}}
-.loading{text-align:center;padding:40px;color:var(--text-muted);}
+.loading{text-align:center;padding:40px;color:var(–text-muted);}
 </style>
+
 </head>
 <body>
 <header>
@@ -171,6 +180,7 @@ function renderGraph(history) {
     document.getElementById('graphSection').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">\u5c65\u6b74\u30c7\u30fc\u30bf\u304c\u307e\u3060\u3042\u308a\u307e\u305b\u3093</div>';
     return;
   }
+
   var tbd = {};
   history.forEach(function(day) {
     tbd[day.date_key] = {};
@@ -180,6 +190,7 @@ function renderGraph(history) {
       });
     });
   });
+
   var dates = Object.keys(tbd).sort();
   var ttc = {};
   dates.forEach(function(d) {
@@ -187,36 +198,90 @@ function renderGraph(history) {
       ttc[e[0]] = (ttc[e[0]] || 0) + e[1];
     });
   });
+
   var topTags = Object.entries(ttc).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 8).map(function(e) { return e[0]; });
-  var colors = ['#ff4da6', '#b44dff', '#ff80c8', '#7a1fa2', '#ff9de2', '#d084ff', '#ffaad4', '#9b59b6'];
+
+  // 識別しやすい8色（ピンク・紫系でも明度差をつける）
+  var colors = [
+    '#ff4da6', // ホットピンク
+    '#00e5ff', // シアン
+    '#ffd700', // ゴールド
+    '#b44dff', // パープル
+    '#00ff99', // ミントグリーン
+    '#ff8c42', // オレンジ
+    '#ff80c8', // ライトピンク
+    '#a0a0ff'  // ラベンダー
+  ];
+
   var datasets = topTags.map(function(tag, i) {
     return {
       label: tag,
       data: dates.map(function(d) { return tbd[d][tag] || 0; }),
       borderColor: colors[i % 8],
       backgroundColor: colors[i % 8] + '22',
-      borderWidth: 2,
-      pointRadius: 3,
+      borderWidth: 2.5,
+      pointRadius: 5,
+      pointHoverRadius: 8,
+      pointBackgroundColor: colors[i % 8],
       tension: 0.4,
-      fill: false
+      fill: false,
+      hidden: false
     };
   });
+
   if (CI.t) CI.t.destroy();
-  document.getElementById('graphSection').innerHTML = '<div class="section-title">&#x1f4c8; タグ別推移グラフ</div><div class="chart-card"><canvas id="ct"></canvas><div class="chart-note">' + dates.length + '\u65e5\u5206</div></div>';
+
+  document.getElementById('graphSection').innerHTML =
+    '<div class="section-title">&#x1f4c8; タグ別推移グラフ</div>' +
+    '<div class="chart-card">' +
+      '<canvas id="ct"></canvas>' +
+      '<div class="chart-note">' + dates.length + '\u65e5\u5206</div>' +
+    '</div>' +
+    '<div class="legend-list" id="customLegend"></div>';
+
   CI.t = new Chart(document.getElementById('ct').getContext('2d'), {
     type: 'line',
     data: { labels: dates.map(function(d) { return d.slice(5); }), datasets: datasets },
     options: {
       responsive: true,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { position: 'bottom', labels: { color: '#d0a0ff', font: { size: 10 }, boxWidth: 12, padding: 8 } },
-        tooltip: { backgroundColor: '#1a0025', borderColor: '#3a1050', borderWidth: 1, titleColor: '#ff4da6', bodyColor: '#f0e0ff' }
+        legend: { display: false }, // 標準凡例は非表示、独自凡例を使う
+        tooltip: {
+          backgroundColor: '#1a0025',
+          borderColor: '#3a1050',
+          borderWidth: 1,
+          titleColor: '#ff4da6',
+          bodyColor: '#f0e0ff',
+          padding: 10,
+          callbacks: {
+            label: function(ctx) {
+              return ' ' + ctx.dataset.label + ': ' + ctx.parsed.y + '作品';
+            }
+          }
+        }
       },
       scales: {
         x: { ticks: { color: '#a080b0', font: { size: 10 } }, grid: { color: 'rgba(180,77,255,0.08)' } },
         y: { ticks: { color: '#a080b0', font: { size: 10 } }, grid: { color: 'rgba(180,77,255,0.08)' }, beginAtZero: true }
       }
     }
+  });
+
+  // 独自タップ式凡例を生成
+  var legendEl = document.getElementById('customLegend');
+  topTags.forEach(function(tag, i) {
+    var item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = '<div class="legend-dot" style="background:' + colors[i % 8] + ';box-shadow:0 0 6px ' + colors[i % 8] + '88"></div><span class="legend-label">' + esc(tag) + '</span>';
+    item.addEventListener('click', function() {
+      var meta = CI.t.getDatasetMeta(i);
+      var isHidden = meta.hidden;
+      meta.hidden = !isHidden;
+      item.classList.toggle('hidden', !isHidden);
+      CI.t.update();
+    });
+    legendEl.appendChild(item);
   });
 }
 
