@@ -17,25 +17,17 @@ jobs:
       - name: Run scraper
         run: |
           python - << 'PYEOF'
-          import requests,json,os,time
+          import requests,re
           from bs4 import BeautifulSoup
-          from datetime import datetime,timezone,timedelta
-          JST=timezone(timedelta(hours=9))
-          now=datetime.now(JST)
-          date_str=now.strftime("%Y-%m-%d %H:%M")
-          date_key=now.strftime("%Y-%m-%d")
-          URL="https://www.dlsite.com/girls-touch/ranking/ajax?ranking_type=day"
+          URL="https://www.dlsite.com/girls-touch/ranking/day"
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
-          H={"User-Agent":UA,"Accept-Language":"ja,en;q=0.9"}res=requests.get(URL,headers=H,timeout=30)
+          H={"User-Agent":UA,"Accept-Language":"ja,en;q=0.9"}
           res=requests.get(URL,headers=H,timeout=30)
           res.encoding="utf-8"
-          import re
           matches=re.findall(r'RJ\d{6,8}',res.text)
-          print("work IDs found:",len(set(matches)))
-          print("first 10:",list(set(matches))[:10])
-          for sel in ["tr.ranking_list_item","li.work_list_item",".n_worklist","tr.worklist"]:
-            found=soup.select(sel)
-            print(sel,"->",len(found))
+          unique=list(set(matches))
+          print("work IDs found:",len(unique))
+          print("first 10:",unique[:10])
           PYEOF
       - name: Commit and push
         run: |
