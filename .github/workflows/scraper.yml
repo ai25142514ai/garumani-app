@@ -24,10 +24,19 @@ jobs:
           now=datetime.now(JST)
           date_str=now.strftime("%Y-%m-%d %H:%M")
           date_key=now.strftime("%Y-%m-%d")
-          URL="https://www.dlsite.com/girls-touch/ranking/day"
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
-          H={"User-Agent":UA,"Accept-Language":"ja,en;q=0.9"}
-          res=requests.get(URL,headers=H,timeout=30)
+          H={
+            "User-Agent":UA,
+            "Accept-Language":"ja,en;q=0.9",
+            "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Referer":"https://www.dlsite.com/girls-touch/ranking/day"
+          }
+          session=requests.Session()
+          session.headers.update(H)
+          session.get("https://www.dlsite.com/girls-touch/",timeout=15)
+          time.sleep(1)
+          URL="https://www.dlsite.com/girls-touch/ranking/day"
+          res=session.get(URL,timeout=30)
           res.encoding="utf-8"
           matches=re.findall(r'RJ\d{6,8}',res.text)
           seen=set()
@@ -36,9 +45,9 @@ jobs:
           items=[]
           for i,wid in enumerate(unique):
             try:
-              time.sleep(0.8)
+              time.sleep(1.2)
               wurl="https://www.dlsite.com/girls-touch/work/=/product_id/"+wid+".html"
-              wr=requests.get(wurl,headers=H,timeout=20)
+              wr=session.get(wurl,timeout=20,allow_redirects=True)
               wr.encoding="utf-8"
               ws=BeautifulSoup(wr.text,"lxml")
               title=ws.select_one("h1#work_name")
@@ -46,14 +55,31 @@ jobs:
               circle=ws.select_one("span.maker_name a") or ws.select_one("a.maker_name")
               circle=circle.text.strip() if circle else ""
               img=""
-              for sel in ["meta[property='og:image']","img.work_thumb","img#work_main_img",".product-slider img","img[src*='img_main']"]:
+              for sel in [
+                "meta[property='og:image']",
+                "img.work_thumb",
+                "img#work_main_img",
+                ".product-slider-data img",
+                ".slider-data img",
+                "img[src*='img_main']",
+                "img[src*='dlsite']"
+              ]:
                 el=ws.select_one(sel)
                 if el:
                   img=el.get("content") or el.get("src","")
                   if img:break
               if img.startswith("//"):img="https:"+img
               tags=[]
-              for a in ws.select("div.main_genre a,a.genre_tag,div.work_genre a,.work_genre a"):
+              for a in ws.select(
+                "div.main_genre a,"
+                "a.genre_tag,"
+                "div.work_genre a,"
+                ".work_genre a,"
+                "#work_genre a,"
+                "td.genre a,"
+                ".search_tag a,"
+                "a[href*='/genre/']"
+              ):
                 t=a.text.strip()
                 if t and t not in tags:tags.append(t)
               dl_count=0
@@ -64,16 +90,20 @@ jobs:
                 td=tr.select_one("td")
                 if not th or not td:continue
                 lb=th.text.strip()
-                if "\u30c0\u30a6\u30f3\u30ed\u30fc\u30c9" in lb or "DL" in lb:
-                  try:dl_count=int(td.text.strip().replace(",","").replace("\u4ef6",""))
+                if "ダウンロード" in lb or "DL" in lb:
+                  try:dl_count=int(td.text.strip().replace(",","").replace("件",""))
                   except:pass
-                elif "\u5024\u6bb5" in lb or "\u4fa1\u683c" in lb:
-                  try:price=int(td.text.strip().replace(",","").replace("\u5186","").replace("\xa5",""))
+                elif "値段" in lb or "価格" in lb:
+                  try:price=int(td.text.strip().replace(",","").replace("円","").replace("\xa5",""))
                   except:pass
-                elif "\u8ca9\u58f2\u65e5" in lb:
+                elif "販売日" in lb:
                   release_date=td.text.strip()
               print(i+1,title[:20],"img:",bool(img),"tags:",len(tags))
-              items.append({"rank":i+1,"title":title,"url":wurl,"img":img,"circle":circle,"author":"","release_date":release_date,"dl_count":dl_count,"price":price,"tags":tags})
+              items.append({
+                "rank":i+1,"title":title,"url":wurl,"img":img,
+                "circle":circle,"author":"","release_date":release_date,
+                "dl_count":dl_count,"price":price,"tags":tags
+              })
             except Exception as e:
               print("error:",wid,e)
           def build_tag_data(items):
