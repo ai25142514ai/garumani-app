@@ -20,35 +20,50 @@ jobs:
           import requests,re,json,time
           from bs4 import BeautifulSoup
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
-          H={"User-Agent":UA,"Accept-Language":"ja,en;q=0.9","Accept":"application/json, text/javascript, */*; q=0.01","X-Requested-With":"XMLHttpRequest","Referer":"https://www.dlsite.com/girls-touch/ranking/day"}
+          H={"User-Agent":UA,"Accept-Language":"ja,en;q=0.9","Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8","Referer":"https://www.dlsite.com/girls-touch/"}
           session=requests.Session()
           session.headers.update(H)
           session.get("https://www.dlsite.com/girls-touch/",timeout=15)
           time.sleep(1)
-          # 方法1: rankingのAJAX API
-          urls=[
-            "https://www.dlsite.com/girls-touch/ranking/ajax/=/term/day/page/1/limit/30",
-            "https://www.dlsite.com/girls-touch/ranking/ajax/day",
-            "https://www.dlsite.com/girls-touch/ranking/=/term/day.json",
-          ]
-          for url in urls:
-            try:
-              r=session.get(url,timeout=15)
-              print("URL:",url)
-              print("Status:",r.status_code)
-              print("Content-Type:",r.headers.get("Content-Type",""))
-              print("Preview:",r.text[:500])
-              print("---")
-            except Exception as e:
-              print("Error:",url,e)
-          # 方法2: product/info/ajax（複数同時取得）
-          print("=== product info API ===")
-          try:
-            r2=session.get("https://www.dlsite.com/product/info/ajax?product_id=RJ01538553,RJ01539000&cdn_cache_min=1",timeout=15)
-            print("Status:",r2.status_code)
-            print("Preview:",r2.text[:1000])
-          except Exception as e:
-            print("Error:",e)
+
+          # ① ランキングページの構造確認
+          res=session.get("https://www.dlsite.com/girls-touch/ranking/day",timeout=30)
+          res.encoding="utf-8"
+          soup=BeautifulSoup(res.text,"lxml")
+          print("HTML length:",len(res.text))
+          for li in soup.select("li")[:5]:
+            if "RJ" in str(li):
+              print("=== li with RJ ===")
+              print(str(li)[:2000])
+              break
+          imgs=[i.get("src","") for i in soup.select("img") if "RJ" in i.get("src","")]
+          print("img with RJ:",imgs[:5])
+          for el in soup.select("[data-product-id],[data-work-id],[data-id]")[:3]:
+            print("data-attr:",str(el)[:500])
+
+          # ② 作品ページのタグ確認（HTMLテキストから直接検索）
+          time.sleep(1.5)
+          wurl="https://www.dlsite.com/girls-touch/work/=/product_id/RJ01538553.html"
+          wr=session.get(wurl,timeout=20,allow_redirects=True)
+          wr.encoding="utf-8"
+          ws=BeautifulSoup(wr.text,"lxml")
+          # タグっぽいキーワードをテキストから探す
+          print("=== 作品ページ テキスト検索 ===")
+          full_text=wr.text
+          # 「中出し」「クンニ」等のワードが含まれるか
+          keywords=["中出し","クンニ","クリ責め","潮吹き","巨根","フェラ","手コキ"]
+          for kw in keywords:
+            if kw in full_text:
+              # 前後50文字を表示
+              idx=full_text.index(kw)
+              print("FOUND:",kw,"->",full_text[max(0,idx-30):idx+50])
+          # scriptタグ内のJSONでwork_typeやgenreを探す
+          for sc in ws.find_all("script"):
+            t=sc.string or ""
+            if "genre" in t and len(t)>100:
+              print("=== script with genre (500chars) ===")
+              print(t[:500])
+              break
           print("done")
           PYEOF
       - name: Commit and push
