@@ -44,7 +44,32 @@ jobs:
           print("work IDs found:",len(unique))
           SITES=["girls","girls-touch","maniax","home"]
           SKIP={"ジャンル一覧","ジャンル一覧へ","お気に入り","カート","購入","レビュー","もっと見る","トップ","検索","ホーム","マイページ","通知","ヘルプ","同人誌・同人ゲーム・同人ボイス・ASMR"}
-          def scrape_work(wid):
+          def fetch_by_api(wid):
+            try:
+              api="https://www.dlsite.com/girls/product/info/ajax?product_id="+wid
+              r=session.get(api,timeout=15,headers={"Accept":"application/json","X-Requested-With":"XMLHttpRequest"})
+              d=r.json()
+              if wid not in d:
+                api2="https://www.dlsite.com/home/product/info/ajax?product_id="+wid
+                r=session.get(api2,timeout=15,headers={"Accept":"application/json","X-Requested-With":"XMLHttpRequest"})
+                d=r.json()
+              if wid not in d:return None
+              w=d[wid]
+              title=w.get("work_name","")
+              circle=w.get("maker_name","")
+              img=w.get("image_main","") or w.get("image_thum","")
+              if img and img.startswith("//"):img="https:"+img
+              tags=[g.get("name","") for g in w.get("genres",[]) if g.get("name","") and g.get("name","") not in SKIP]
+              price=w.get("price",0) or 0
+              release_date=w.get("regist_date","")
+              dl_count=w.get("dl_count",0) or 0
+              site=w.get("site_id","girls")
+              wurl="https://www.dlsite.com/"+site+"/work/=/product_id/"+wid+".html"
+              return {"url":wurl,"title":title,"circle":circle,"img":img,"tags":tags,"dl_count":dl_count,"price":price,"release_date":release_date}
+            except Exception as e:
+              print("  API error:",e)
+              return None
+          def scrape_html(wid):
             for site in SITES:
               try:
                 wurl="https://www.dlsite.com/"+site+"/work/=/product_id/"+wid+".html"
@@ -93,15 +118,22 @@ jobs:
             return None
           items=[]
           for i,wid in enumerate(unique):
-            time.sleep(1.2)
-            w=scrape_work(wid)
+            time.sleep(1.0)
+            w=scrape_html(wid)
+            if not w or not w.get("tags"):
+              print("  →API fallback:",wid)
+              w2=fetch_by_api(wid)
+              if w2:
+                if w and not w.get("tags"):
+                  w2["url"]=w["url"]
+                w=w2
             if w:
               w["rank"]=i+1
               w["author"]=""
               items.append(w)
               print(i+1,w["title"][:20],"img:",bool(w["img"]),"tags:",len(w["tags"]))
             else:
-              print(i+1,wid,"→ 全サイト失敗")
+              print(i+1,wid,"→ 完全失敗")
               items.append({"rank":i+1,"title":wid,"url":"","img":"","circle":"","author":"","release_date":"","dl_count":0,"price":0,"tags":[]})
           def build_tag_data(items):
             tc={}
