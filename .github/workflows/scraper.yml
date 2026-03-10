@@ -35,38 +35,26 @@ jobs:
           session.headers.update(H)
           session.get("https://www.dlsite.com/girls-touch/",timeout=15)
           time.sleep(1)
-          URL="https://www.dlsite.com/girls-touch/ranking/day"
-          res=session.get(URL,timeout=30)
-          res.encoding="utf-8"
-          matches=re.findall(r'RJ\d{6,8}',res.text)
-          seen=set()
-          unique=[x for x in matches if not (x in seen or seen.add(x))][:30]
-          print("work IDs found:",len(unique))
-          SKIP={"ジャンル一覧","ジャンル一覧へ","お気に入り","カート","購入","レビュー","もっと見る","トップ","検索","ホーム","マイページ","通知","ヘルプ","同人誌・同人ゲーム・同人ボイス・ASMR"}
-          items=[]
-          for i,wid in enumerate(unique[:3]):
-            try:
-              time.sleep(1.2)
-              wurl="https://www.dlsite.com/girls-touch/work/=/product_id/"+wid+".html"
-              wr=session.get(wurl,timeout=20,allow_redirects=True)
-              wr.encoding="utf-8"
-              ws=BeautifulSoup(wr.text,"lxml")
-              title=ws.select_one("h1#work_name")
-              title=title.text.strip() if title else ""
-              if not title or "同人誌・同人ゲーム" in title:
-                og=ws.select_one("meta[property='og:title']")
-                title=og.get("content","").strip() if og else wid
-              if "同人誌・同人ゲーム" in title:title=wid
-              # タグの全セレクタをデバッグ
-              print("--- DEBUG",wid,"---")
-              for sel in ["div.main_genre a","a.genre_tag","div.work_genre a",".work_genre a","#work_genre a","td.genre a",".search_tag a","table#work_outline td a","[class*='genre'] a"]:
-                els=ws.select(sel)
-                if els:
-                  print("SEL",sel,"->",len(els),"件:",[e.text.strip() for e in els[:5]])
-              print("--- END DEBUG ---")
-            except Exception as e:
-              print("error:",wid,e)
-          print("done debug")
+          # RJ01538553（1位）だけ詳細デバッグ
+          wid="RJ01538553"
+          wurl="https://www.dlsite.com/girls-touch/work/=/product_id/"+wid+".html"
+          wr=session.get(wurl,timeout=20,allow_redirects=True)
+          wr.encoding="utf-8"
+          ws=BeautifulSoup(wr.text,"lxml")
+          # work_outlineテーブルの全行を表示
+          print("=== work_outline table ===")
+          for tr in ws.select("table#work_outline tr"):
+            th=tr.select_one("th")
+            td=tr.select_one("td")
+            if th and td:
+              print("TH:",th.text.strip()[:20],"| TD:",td.text.strip()[:60])
+          # aタグを含む全tdを表示
+          print("=== td with links ===")
+          for td in ws.select("table#work_outline td"):
+            links=[a.text.strip() for a in td.select("a") if a.text.strip()]
+            if links:
+              print("TD links:",links[:8])
+          print("done")
           PYEOF
       - name: Commit and push
         run: |
