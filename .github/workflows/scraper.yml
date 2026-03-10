@@ -29,112 +29,117 @@ jobs:
             "User-Agent":UA,
             "Accept-Language":"ja,en;q=0.9",
             "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Referer":"https://www.dlsite.com/girls/ranking/day"
+            "Referer":"https://www.dlsite.com/girls-touch/"
           }
           session=requests.Session()
           session.headers.update(H)
-          session.get("https://www.dlsite.com/girls/",timeout=15)
+          session.get("https://www.dlsite.com/girls-touch/",timeout=15)
           time.sleep(1)
-          URL="https://www.dlsite.com/girls/ranking/day"
+          URL="https://www.dlsite.com/girls-touch/ranking/day"
           res=session.get(URL,timeout=30)
           res.encoding="utf-8"
-          matches=re.findall(r'RJ\d{6,8}',res.text)
-          seen=set()
-          unique=[x for x in matches if not (x in seen or seen.add(x))][:30]
-          print("work IDs found:",len(unique))
-          SITES=["girls","girls-touch","maniax","home"]
+          soup=BeautifulSoup(res.text,"lxml")
           SKIP={"ジャンル一覧","ジャンル一覧へ","お気に入り","カート","購入","レビュー","もっと見る","トップ","検索","ホーム","マイページ","通知","ヘルプ","同人誌・同人ゲーム・同人ボイス・ASMR"}
-          def fetch_by_api(wid):
-            try:
-              api="https://www.dlsite.com/girls/product/info/ajax?product_id="+wid
-              r=session.get(api,timeout=15,headers={"Accept":"application/json","X-Requested-With":"XMLHttpRequest"})
-              d=r.json()
-              if wid not in d:
-                api2="https://www.dlsite.com/home/product/info/ajax?product_id="+wid
-                r=session.get(api2,timeout=15,headers={"Accept":"application/json","X-Requested-With":"XMLHttpRequest"})
-                d=r.json()
-              if wid not in d:return None
-              w=d[wid]
-              title=w.get("work_name","")
-              circle=w.get("maker_name","")
-              img=w.get("image_main","") or w.get("image_thum","")
-              if img and img.startswith("//"):img="https:"+img
-              tags=[g.get("name","") for g in w.get("genres",[]) if g.get("name","") and g.get("name","") not in SKIP]
-              price=w.get("price",0) or 0
-              release_date=w.get("regist_date","")
-              dl_count=w.get("dl_count",0) or 0
-              site=w.get("site_id","girls")
-              wurl="https://www.dlsite.com/"+site+"/work/=/product_id/"+wid+".html"
-              return {"url":wurl,"title":title,"circle":circle,"img":img,"tags":tags,"dl_count":dl_count,"price":price,"release_date":release_date}
-            except Exception as e:
-              print("  API error:",e)
-              return None
-          def scrape_html(wid):
-            for site in SITES:
-              try:
-                wurl="https://www.dlsite.com/"+site+"/work/=/product_id/"+wid+".html"
-                wr=session.get(wurl,timeout=20,allow_redirects=True)
-                wr.encoding="utf-8"
-                ws=BeautifulSoup(wr.text,"lxml")
-                title=ws.select_one("h1#work_name")
-                title=title.text.strip() if title else ""
-                if not title or "同人誌・同人ゲーム" in title:
-                  og=ws.select_one("meta[property='og:title']")
-                  title=og.get("content","").strip() if og else ""
-                if not title or "同人誌・同人ゲーム" in title:
-                  continue
-                circle=ws.select_one("span.maker_name a") or ws.select_one("a.maker_name")
-                circle=circle.text.strip() if circle else ""
-                img=""
-                for sel in ["meta[property='og:image']","img.work_thumb","img#work_main_img",".product-slider-data img",".slider-data img","img[src*='img_main']","img[src*='dlsite']"]:
-                  el=ws.select_one(sel)
-                  if el:
-                    img=el.get("content") or el.get("src","")
-                    if img:break
-                if img.startswith("//"):img="https:"+img
-                tags=[]
-                for a in ws.select("div.main_genre a,a.genre_tag,div.work_genre a,.work_genre a,#work_genre a,td.genre a,.search_tag a"):
-                  t=a.text.strip()
-                  if t and t not in tags and t not in SKIP and len(t)>1:tags.append(t)
-                dl_count=0
-                price=0
-                release_date=""
-                for tr in ws.select("table#work_outline tr"):
-                  th=tr.select_one("th")
-                  td=tr.select_one("td")
-                  if not th or not td:continue
-                  lb=th.text.strip()
-                  if "ダウンロード" in lb or "DL" in lb:
-                    try:dl_count=int(td.text.strip().replace(",","").replace("件",""))
-                    except:pass
-                  elif "値段" in lb or "価格" in lb:
-                    try:price=int(td.text.strip().replace(",","").replace("円","").replace("\xa5",""))
-                    except:pass
-                  elif "販売日" in lb:
-                    release_date=td.text.strip()
-                return {"url":wurl,"title":title,"circle":circle,"img":img,"tags":tags,"dl_count":dl_count,"price":price,"release_date":release_date}
-              except Exception as e:
-                print("  site",site,"error:",e)
-            return None
+
+          # ランキングページから直接作品情報を取得
           items=[]
-          for i,wid in enumerate(unique):
-            time.sleep(1.0)
-            w=scrape_html(wid)
-            if not w or not w.get("tags"):
-              print("  →API fallback:",wid)
-              w2=fetch_by_api(wid)
-              if w2:
-                if w and not w.get("tags"):
-                  w2["url"]=w["url"]
-                w=w2
-            if w:
-              w["rank"]=i+1
-              w["author"]=""
-              items.append(w)
-              print(i+1,w["title"][:20],"img:",bool(w["img"]),"tags:",len(w["tags"]))
+          rank_items=soup.select("li.ranking_item, li[class*='ranking'], div.work_item, tr.ranking_work")
+          print("ranking elements found:",len(rank_items))
+
+          # 要素が見つからない場合はRJ番号方式でフォールバック
+          if len(rank_items)==0:
+            print("fallback: RJ regex from page")
+            # ページ内埋め込みJSONを探す
+            scripts=soup.find_all("script")
+            json_items=[]
+            for sc in scripts:
+              t=sc.string or ""
+              if "work_name" in t and "RJ" in t:
+                m=re.search(r'(\[[\s\S]*?"work_name"[\s\S]*?\])',t)
+                if m:
+                  try:
+                    json_items=json.loads(m.group(1))
+                    print("found embedded JSON items:",len(json_items))
+                    break
+                  except:pass
+            if json_items:
+              for i,w in enumerate(json_items[:30]):
+                wid=w.get("product_id","")
+                title=w.get("work_name","") or wid
+                circle=w.get("maker_name","")
+                img=w.get("image_main","") or w.get("image_thum","")
+                if img and img.startswith("//"):img="https:"+img
+                tags=[g.get("name","") for g in w.get("genres",[]) if g.get("name","") not in SKIP]
+                price=w.get("price",0) or 0
+                dl_count=w.get("dl_count",0) or 0
+                release_date=w.get("regist_date","") or ""
+                site_id=w.get("site_id","girls-touch")
+                wurl="https://www.dlsite.com/"+site_id+"/work/=/product_id/"+wid+".html"
+                items.append({"rank":i+1,"title":title,"url":wurl,"img":img,"circle":circle,"author":"","release_date":release_date,"dl_count":dl_count,"price":price,"tags":tags})
+                print(i+1,title[:20],"img:",bool(img),"tags:",len(tags))
             else:
-              print(i+1,wid,"→ 完全失敗")
-              items.append({"rank":i+1,"title":wid,"url":"","img":"","circle":"","author":"","release_date":"","dl_count":0,"price":0,"tags":[]})
+              # 最終フォールバック：RJ番号+APIで取得
+              matches=re.findall(r'RJ\d{6,8}',res.text)
+              seen=set()
+              unique=[x for x in matches if not (x in seen or seen.add(x))][:30]
+              print("RJ IDs found:",len(unique))
+              API_SITES=["girls-touch","girls","home"]
+              for i,wid in enumerate(unique):
+                time.sleep(1.0)
+                result=None
+                for asite in API_SITES:
+                  try:
+                    api="https://www.dlsite.com/"+asite+"/product/info/ajax?product_id="+wid+"&cdn_cache_min=1"
+                    r=session.get(api,timeout=15,headers={"Accept":"application/json","X-Requested-With":"XMLHttpRequest"})
+                    if r.status_code!=200:continue
+                    d=r.json()
+                    if wid not in d:continue
+                    w=d[wid]
+                    title=w.get("work_name","")
+                    if not title or "同人誌・同人ゲーム" in title:continue
+                    circle=w.get("maker_name","")
+                    img=w.get("image_main","") or w.get("image_thum","")
+                    if img and img.startswith("//"):img="https:"+img
+                    tags=[g.get("name","") for g in w.get("genres",[]) if g.get("name","") and g.get("name","") not in SKIP]
+                    price=w.get("price",0) or 0
+                    release_date=w.get("regist_date","") or ""
+                    dl_count=w.get("dl_count",0) or 0
+                    site_id=w.get("site_id",asite)
+                    wurl="https://www.dlsite.com/"+site_id+"/work/=/product_id/"+wid+".html"
+                    result={"rank":i+1,"title":title,"url":wurl,"img":img,"circle":circle,"author":"","release_date":release_date,"dl_count":dl_count,"price":price,"tags":tags}
+                    break
+                  except Exception as e:
+                    print("  API",asite,"error:",e)
+                if not result:
+                  result={"rank":i+1,"title":wid,"url":"","img":"","circle":"","author":"","release_date":"","dl_count":0,"price":0,"tags":[]}
+                items.append(result)
+                print(i+1,result["title"][:20],"img:",bool(result["img"]),"tags:",len(result["tags"]))
+          else:
+            # ランキング要素から直接取得
+            for i,el in enumerate(rank_items[:30]):
+              wid_m=re.search(r'RJ\d{6,8}',str(el))
+              wid=wid_m.group(0) if wid_m else ""
+              title_el=el.select_one("dt.work_name a, .work_name a, a.work_name, h2 a, .title a")
+              title=title_el.text.strip() if title_el else ""
+              if not title and wid:title=wid
+              circle_el=el.select_one(".maker_name a, .circle_name a, span.maker_name")
+              circle=circle_el.text.strip() if circle_el else ""
+              img_el=el.select_one("img.lazy, img[data-src], img[src*='dlsite'], img[src*='RJ']")
+              img=""
+              if img_el:
+                img=img_el.get("data-src") or img_el.get("src","")
+              if img.startswith("//"):img="https:"+img
+              tags=[]
+              for a in el.select("a[href*='genre'], .genre_tag a, .work_genre a"):
+                t=a.text.strip()
+                if t and t not in SKIP and t not in tags:tags.append(t)
+              link_el=el.select_one("a[href*='product_id']")
+              wurl=link_el.get("href","") if link_el else ""
+              if wurl and wurl.startswith("/"):wurl="https://www.dlsite.com"+wurl
+              items.append({"rank":i+1,"title":title,"url":wurl,"img":img,"circle":circle,"author":"","release_date":"","dl_count":0,"price":0,"tags":tags})
+              print(i+1,title[:20],"img:",bool(img),"tags:",len(tags))
+
+          print("total items:",len(items))
           def build_tag_data(items):
             tc={}
             for item in items:
