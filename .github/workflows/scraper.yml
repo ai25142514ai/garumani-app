@@ -44,7 +44,7 @@ jobs:
           print("work IDs found:",len(unique))
           SKIP={"ジャンル一覧","ジャンル一覧へ","お気に入り","カート","購入","レビュー","もっと見る","トップ","検索","ホーム","マイページ","通知","ヘルプ","同人誌・同人ゲーム・同人ボイス・ASMR"}
           items=[]
-          for i,wid in enumerate(unique):
+          for i,wid in enumerate(unique[:3]):
             try:
               time.sleep(1.2)
               wurl="https://www.dlsite.com/girls-touch/work/=/product_id/"+wid+".html"
@@ -56,65 +56,17 @@ jobs:
               if not title or "同人誌・同人ゲーム" in title:
                 og=ws.select_one("meta[property='og:title']")
                 title=og.get("content","").strip() if og else wid
-              if "同人誌・同人ゲーム" in title:
-                title=wid
-              circle=ws.select_one("span.maker_name a") or ws.select_one("a.maker_name")
-              circle=circle.text.strip() if circle else ""
-              img=""
-              for sel in ["meta[property='og:image']","img.work_thumb","img#work_main_img",".product-slider-data img",".slider-data img","img[src*='img_main']","img[src*='dlsite']"]:
-                el=ws.select_one(sel)
-                if el:
-                  img=el.get("content") or el.get("src","")
-                  if img:break
-              if img.startswith("//"):img="https:"+img
-              tags=[]
-              for a in ws.select("div.main_genre a,a.genre_tag,div.work_genre a,.work_genre a,#work_genre a,td.genre a,.search_tag a"):
-                t=a.text.strip()
-                if t and t not in tags and t not in SKIP and len(t)>1:tags.append(t)
-              dl_count=0
-              price=0
-              release_date=""
-              for tr in ws.select("table#work_outline tr"):
-                th=tr.select_one("th")
-                td=tr.select_one("td")
-                if not th or not td:continue
-                lb=th.text.strip()
-                if "ダウンロード" in lb or "DL" in lb:
-                  try:dl_count=int(td.text.strip().replace(",","").replace("件",""))
-                  except:pass
-                elif "値段" in lb or "価格" in lb:
-                  try:price=int(td.text.strip().replace(",","").replace("円","").replace("\xa5",""))
-                  except:pass
-                elif "販売日" in lb:
-                  release_date=td.text.strip()
-              print(i+1,title[:20],"img:",bool(img),"tags:",len(tags))
-              items.append({"rank":i+1,"title":title,"url":wurl,"img":img,"circle":circle,"author":"","release_date":release_date,"dl_count":dl_count,"price":price,"tags":tags})
+              if "同人誌・同人ゲーム" in title:title=wid
+              # タグの全セレクタをデバッグ
+              print("--- DEBUG",wid,"---")
+              for sel in ["div.main_genre a","a.genre_tag","div.work_genre a",".work_genre a","#work_genre a","td.genre a",".search_tag a","table#work_outline td a","[class*='genre'] a"]:
+                els=ws.select(sel)
+                if els:
+                  print("SEL",sel,"->",len(els),"件:",[e.text.strip() for e in els[:5]])
+              print("--- END DEBUG ---")
             except Exception as e:
               print("error:",wid,e)
-              items.append({"rank":i+1,"title":wid,"url":"","img":"","circle":"","author":"","release_date":"","dl_count":0,"price":0,"tags":[]})
-          def build_tag_data(items):
-            tc={}
-            for item in items:
-              for tag in item.get("tags",[]):tc[tag]=tc.get(tag,0)+1
-            st=sorted(tc.items(),key=lambda x:x[1],reverse=True)
-            return {"tags":[{"tag":t,"count":c} for t,c in st[:30]]}
-          def load_history():
-            if os.path.exists("ranking_history.json"):
-              with open("ranking_history.json","r",encoding="utf-8") as f:return json.load(f)
-            return []
-          def save_history(history,entry):
-            history=[d for d in history if d.get("date_key")!=date_key]
-            history.append(entry)
-            history=sorted(history,key=lambda x:x["date_key"])[-90:]
-            with open("ranking_history.json","w",encoding="utf-8") as f:json.dump(history,f,ensure_ascii=False,indent=2)
-            return history
-          rd={"date":date_str,"date_key":date_key,"items":items}
-          td=build_tag_data(items)
-          with open("ranking_data.json","w",encoding="utf-8") as f:json.dump(rd,f,ensure_ascii=False,indent=2)
-          with open("tag_ranking.json","w",encoding="utf-8") as f:json.dump(td,f,ensure_ascii=False,indent=2)
-          history=load_history()
-          save_history(history,rd)
-          print("done",len(items),"items")
+          print("done debug")
           PYEOF
       - name: Commit and push
         run: |
