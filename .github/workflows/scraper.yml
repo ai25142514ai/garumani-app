@@ -17,21 +17,132 @@ jobs:
       - name: Run scraper
         run: |
           python - << 'PYEOF'
-          import requests,re,time
+          import requests,re,json,os,time
           from bs4 import BeautifulSoup
+          from datetime import datetime,timezone,timedelta
+          JST=timezone(timedelta(hours=9))
+          now=datetime.now(JST)
+          date_str=now.strftime("%Y-%m-%d %H:%M")
+          date_key=now.strftime("%Y-%m-%d")
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
-          H={"User-Agent":UA,"Accept-Language":"ja,en;q=0.9","Referer":"https://www.dlsite.com/girls/"}
+          H={"User-Agent":UA,"Accept-Language":"ja,en;q=0.9","Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8","Referer":"https://www.dlsite.com/girls/"}
           session=requests.Session()
           session.headers.update(H)
           session.get("https://www.dlsite.com/girls/",timeout=15)
           time.sleep(1)
-          wurl="https://www.dlsite.com/girls/work/=/product_id/RJ01538553.html"
-          wr=session.get(wurl,timeout=20,allow_redirects=True)
-          wr.encoding="utf-8"
-          ws=BeautifulSoup(wr.text,"lxml")
-          # ページ全テキストを出力（最初の5000文字）
-          print(ws.get_text(separator="\n",strip=True)[:5000])
-          print("done")
+          res=session.get("https://www.dlsite.com/girls/ranking/day",timeout=30)
+          res.encoding="utf-8"
+          soup=BeautifulSoup(res.text,"lxml")
+          # RJ番号取得
+          all_rj=re.findall(r'RJ\d{6,8}',res.text)
+          seen=set();ranked=[]
+          for x in all_rj:
+            if x not in seen:seen.add(x);ranked.append(x)
+          ranked=ranked[:30]
+          print("work IDs found:",len(ranked))
+          # サムネをdata属性から取得
+          thumb_map={}
+          for el in soup.select("template[data-id]"):
+            wid=el.get("data-id","")
+            if not wid.startswith("RJ"):continue
+            s=el.get("data-samples","")
+            m=re.search(r"'thumb':'(//[^']+_img_main[^']*)'",s)
+            if m and wid not in thumb_map:
+              thumb_map[wid]="https:"+m.group(1)
+          SKIP={"マンガ","ボイス・ASMR","ボイス","ゲーム","動画","乙女向け","R18","JPEG","Windows","Mac","iOS","Android"}
+          GENRE_WORDS={"男主人公","純愛","イラマチオ","オホ声","クンニ","妊娠/孕ませ","巨根","巨乳/爆乳","中出し","潮吹き","クリ責め","フェラ","連続絶頂","ラブラブ/あまあま","着衣攻め","耳舐め","ASMR","乳首責め","淫語","恋人同士","ファンタジー","ささやき","おもちゃ","焦らし","バイノーラル/ダミヘ","パイノーラル","ヤンデレ","幼なじみ","年下攻め","オフィス/職場","命令/無理矢理","アナル","複数プレイ/乱交","回し","巨乳","爆乳","筋肉","女体化","性転換","おっぱい","方言","TS","逆ハーレム","寝取り","NTR","電車","痴漢","サキュバス","淫魔","ママ","オメガバース","ファンタジー","前立腺","ケモノ","獣人","異種族","異世界"}
+          items=[]
+          tag_counter={}
+          for i,wid in enumerate(ranked):
+            try:
+              time.sleep(1.2)
+              wurl="https://www.dlsite.com/girls/work/=/product_id/"+wid+".html"
+              wr=session.get(wurl,timeout=20,allow_redirects=True)
+              wr.encoding="utf-8"
+              ws=BeautifulSoup(wr.text,"lxml")
+              full=ws.get_text(separator="\n",strip=True)
+              lines=[l.strip() for l in full.split("\n") if l.strip()]
+              # タイトル
+              title=ws.select_one("h1#work_name")
+              title=title.text.strip() if title else ""
+              if not title:
+                og=ws.select_one("meta[property='og:title']")
+                title=og.get("content","").strip() if og else wid
+              if not title or "DLsite" in title:title=wid
+              # サムネ
+              img=thumb_map.get(wid,"")
+              if not img:
+                og_img=ws.select_one("meta[property='og:image']")
+                if og_img:img=og_img.get("content","")
+              # 販売日
+              release_date=""
+              for j,line in enumerate(lines):
+                if "販売日" in line:
+                  for k in range(j,min(j+3,len(lines))):
+                    m=re.search(r'(\d{4})年(\d{1,2})月(\d{1,2})日',lines[k])
+                    if m:
+                      release_date="{}-{:02d}-{:02d}".format(m.group(1),int(m.group(2)),int(m.group(3)))
+                      break
+                  break
+              # 価格
+              price=0
+              for line in lines:
+                if "円" in line and re.search(r'\d+円',line):
+                  m=re.search(r'(\d[\d,]+)円',line)
+                  if m:
+                    price=int(m.group(1).replace(",",""))
+                    if 100<=price<=50000:break
+              # サークル名
+              circle=""
+              cr_el=ws.select_one("span.maker_name a,#work_maker a,.maker_name a")
+              if cr_el:circle=cr_el.text.strip()
+              if not circle:
+                for j,line in enumerate(lines):
+                  if "サークル名" in line and j+1<len(lines):
+                    circle=lines[j+1];break
+              # ジャンルタグ
+              tags=[]
+              genre_section=False
+              for line in lines:
+                if "ジャンル" in line:genre_section=True;continue
+                if genre_section:
+                  if line in GENRE_WORDS and line not in tags:
+                    tags.append(line)
+                  if len(tags)>=10:break
+                  if len(line)>20:genre_section=False
+              # ジャンルタグがない場合はテキスト全体から
+              if len(tags)<3:
+                for line in lines:
+                  if line in GENRE_WORDS and line not in tags:
+                    tags.append(line)
+                  if len(tags)>=10:break
+              for t in tags:
+                tag_counter[t]=tag_counter.get(t,0)+1
+              item={"rank":i+1,"id":wid,"title":title,"img":img,"tags":tags,"price":price,"release_date":release_date,"circle":circle,"url":"https://www.dlsite.com/girls/work/=/product_id/"+wid+".html"}
+              items.append(item)
+              print(i+1,title[:20],"img:",bool(img),"tags:",len(tags),"price:",price,"date:",release_date)
+            except Exception as e:
+              print("error:",wid,e)
+              items.append({"rank":i+1,"id":wid,"title":wid,"img":"","tags":[],"price":0,"release_date":"","circle":"","url":"https://www.dlsite.com/girls/work/=/product_id/"+wid+".html"})
+          # ranking_data.json
+          with open("ranking_data.json","w",encoding="utf-8") as f:
+            json.dump({"date":date_str,"items":items},f,ensure_ascii=False,indent=2)
+          # tag_ranking.json
+          sorted_tags=sorted(tag_counter.items(),key=lambda x:-x[1])
+          with open("tag_ranking.json","w",encoding="utf-8") as f:
+            json.dump({"date":date_str,"tags":[{"tag":t,"count":c} for t,c in sorted_tags[:20]]},f,ensure_ascii=False,indent=2)
+          # ranking_history.json
+          hist=[]
+          if os.path.exists("ranking_history.json"):
+            with open("ranking_history.json",encoding="utf-8") as f:
+              try:hist=json.load(f)
+              except:hist=[]
+          hist=[d for d in hist if d.get("date_key")!=date_key]
+          hist.append({"date_key":date_key,"items":[{"id":x["id"],"tags":x["tags"]} for x in items]})
+          hist=sorted(hist,key=lambda x:x["date_key"])[-90:]
+          with open("ranking_history.json","w",encoding="utf-8") as f:
+            json.dump(hist,f,ensure_ascii=False,indent=2)
+          print("done",len(items),"items")
           PYEOF
       - name: Commit and push
         run: |
