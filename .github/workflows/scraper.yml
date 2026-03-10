@@ -19,42 +19,20 @@ jobs:
           python - << 'PYEOF'
           import requests,re,json,os,time
           from bs4 import BeautifulSoup
-          from datetime import datetime,timezone,timedelta
-          JST=timezone(timedelta(hours=9))
-          now=datetime.now(JST)
-          date_str=now.strftime("%Y-%m-%d %H:%M")
-          date_key=now.strftime("%Y-%m-%d")
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
-          H={
-            "User-Agent":UA,
-            "Accept-Language":"ja,en;q=0.9",
-            "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Referer":"https://www.dlsite.com/girls-touch/ranking/day"
-          }
+          H={"User-Agent":UA,"Accept-Language":"ja,en;q=0.9","Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8","Referer":"https://www.dlsite.com/girls-touch/ranking/day"}
           session=requests.Session()
           session.headers.update(H)
           session.get("https://www.dlsite.com/girls-touch/",timeout=15)
           time.sleep(1)
-          # RJ01538553（1位）だけ詳細デバッグ
           wid="RJ01538553"
           wurl="https://www.dlsite.com/girls-touch/work/=/product_id/"+wid+".html"
           wr=session.get(wurl,timeout=20,allow_redirects=True)
           wr.encoding="utf-8"
-          ws=BeautifulSoup(wr.text,"lxml")
-          # work_outlineテーブルの全行を表示
-          print("=== work_outline table ===")
-          for tr in ws.select("table#work_outline tr"):
-            th=tr.select_one("th")
-            td=tr.select_one("td")
-            if th and td:
-              print("TH:",th.text.strip()[:20],"| TD:",td.text.strip()[:60])
-          # aタグを含む全tdを表示
-          print("=== td with links ===")
-          for td in ws.select("table#work_outline td"):
-            links=[a.text.strip() for a in td.select("a") if a.text.strip()]
-            if links:
-              print("TD links:",links[:8])
-          print("done")
+          print("status:",wr.status_code)
+          print("final url:",wr.url)
+          print("html length:",len(wr.text))
+          print("html preview:",wr.text[:2000])
           PYEOF
       - name: Commit and push
         run: |
