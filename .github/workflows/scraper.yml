@@ -17,22 +17,36 @@ jobs:
       - name: Run scraper
         run: |
           python - << 'PYEOF'
-          import requests,re,json,os,time
+          import requests,re,json
           from bs4 import BeautifulSoup
+          import time
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
-          H={"User-Agent":UA,"Accept-Language":"ja,en;q=0.9","Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8","Referer":"https://www.dlsite.com/girls-touch/ranking/day"}
+          H={"User-Agent":UA,"Accept-Language":"ja,en;q=0.9","Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
           session=requests.Session()
           session.headers.update(H)
           session.get("https://www.dlsite.com/girls-touch/",timeout=15)
           time.sleep(1)
-          wid="RJ01538553"
-          wurl="https://www.dlsite.com/girls-touch/work/=/product_id/"+wid+".html"
-          wr=session.get(wurl,timeout=20,allow_redirects=True)
-          wr.encoding="utf-8"
-          print("status:",wr.status_code)
-          print("final url:",wr.url)
-          print("html length:",len(wr.text))
-          print("html preview:",wr.text[:2000])
+          res=session.get("https://www.dlsite.com/girls-touch/ranking/day",timeout=30)
+          res.encoding="utf-8"
+          soup=BeautifulSoup(res.text,"lxml")
+          # scriptタグ内のJSONデータを探す
+          for sc in soup.find_all("script"):
+            t=sc.string or ""
+            # RJ番号とwork_nameが両方含まれるscriptを探す
+            if "work_name" in t and "RJ" in t:
+              print("=== FOUND JSON SCRIPT (first 3000 chars) ===")
+              print(t[:3000])
+              break
+          # dataタグやng-init等も探す
+          for el in soup.select("[data-products],[data-works],[ng-init]"):
+            print("=== FOUND DATA ELEMENT ===")
+            print(str(el)[:1000])
+          # __NEXT_DATA__も確認
+          nd=soup.find("script",{"id":"__NEXT_DATA__"})
+          if nd:
+            print("=== NEXT_DATA found ===")
+            print(nd.string[:2000] if nd.string else "empty")
+          print("done")
           PYEOF
       - name: Commit and push
         run: |
