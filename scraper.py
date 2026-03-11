@@ -53,7 +53,6 @@ def scrape_garumani():
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
     }
-    headers.pop('Accept-Encoding', None)
     res = session.get(url, headers=headers, timeout=15)
 
     print(f"[DEBUG] status={res.status_code} len={len(res.text)}")
